@@ -1,0 +1,107 @@
+# FILE: infra/docker-compose.yml
+
+services:
+
+  # ── Redis (local dev only — use Upstash in production) ────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: smc-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    networks:
+      - smc-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # ── AI Assistant (Python/FastAPI) ──────────────────────────────────────────
+  ai-assistant:
+    build:
+      context: ../services/ai-assistant
+      dockerfile: Dockerfile
+    container_name: smc-ai-assistant
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file: ../.env
+    environment:
+      - REDIS_URL=redis://smc-redis:6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - smc-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Signal Engine (Python) ─────────────────────────────────────────────────
+  signal-engine:
+    build:
+      context: ../services/signal-engine
+      dockerfile: Dockerfile
+    container_name: smc-signal-engine
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      - TRADING_PAIRS=BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT
+      - MIN_RR=2.0
+      - CONFIDENCE_THRESHOLD=65
+      - SIGNAL_COOLDOWN_SEC=60
+      - REDIS_URL=redis://smc-redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - smc-net
+
+  # ── API Server (Node.js) ───────────────────────────────────────────────────
+  api-server:
+    build:
+      context: ../services/api-server
+      dockerfile: Dockerfile
+    container_name: smc-api-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file: ../.env
+    environment:
+      - PORT=3001
+      - AI_SERVICE_URL=http://smc-ai-assistant:8001
+      - REDIS_URL=redis://smc-redis:6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-assistant:
+        condition: service_healthy
+    networks:
+      - smc-net
+
+  # ── Web Admin (static) ────────────────────────────────────────────────────
+  web-admin:
+    image: nginx:alpine
+    container_name: smc-web-admin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ../apps/web-admin:/usr/share/nginx/html:ro
+    networks:
+      - smc-net
+
+networks:
+  smc-net:
+    driver: bridge

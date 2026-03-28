@@ -1,0 +1,65 @@
+
+{
+  "expo": {
+    "name": "lamboapp",
+    "slug": "lampo-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A1A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.osejie.lamboapp",
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch", "remote-notification"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A1A"
+      },
+      "package": "com.osejie.lamboapp",
+      "googleServicesFile": "./google-services.json",
+      "permissions": ["NOTIFICATIONS", "RECEIVE_BOOT_COMPLETED", "VIBRATE"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "notification": {
+        "vapidPublicKey": "BMjhDqi2dOJkHTwbxbQS1yb0XvMCwa7_7EFDCBEqiCBXTgADA90aD-RT0oIzAgRJF6Uca4EH94lU-GwV__SAf-M",
+        "serviceWorkerPath": "./service-worker.js",
+        "color": "#00D4FF",
+        "icon": "./assets/icon.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#00D4FF",
+          "defaultChannel": "smc-signals",
+          "sounds": []
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "scheme": "smctrading",
+    "extra": {
+      "eas": {
+          "projectId": "fd71525b-3a3a-4c3e-bf1f-a228fcbe06f0"
+      }
+    }
+  }
+}

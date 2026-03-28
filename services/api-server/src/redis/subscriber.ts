@@ -1,0 +1,84 @@
+import Redis from 'ioredis';
+import { EventEmitter } from 'events';
+import { SMCSignal } from '../models/signal';
+import { saveSignal } from '../db/supabase';
+
+class SignalEventBus extends EventEmitter {
+  emitSignal(signal: SMCSignal) {
+    this.emit('signal:new', signal);
+  }
+}
+
+export const signalBus = new SignalEventBus();
+
+// Deduplication: suppress identical signals within 5 minutes
+const recentHashes = new Map<string, number>();
+const DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
+function isDuplicate(signal: SMCSignal): boolean {
+  const hash = `${signal.pair}:${signal.type}:${Math.round(signal.entry)}:${signal.confidence_score}`;
+  const now = Date.now();
+  const lastSeen = recentHashes.get(hash);
+
+  if (lastSeen && now - lastSeen < DEDUP_WINDOW_MS) return true;
+
+  recentHashes.set(hash, now);
+
+  // Cleanup stale entries
+  for (const [key, ts] of Array.from(recentHashes.entries())) {
+    if (now - ts > DEDUP_WINDOW_MS) recentHashes.delete(key);
+  }
+
+  return false;
+}
+
+let subscriber: Redis | null = null;
+
+export function startRedisSubscriber(): void {
+  subscriber = new Redis(process.env.REDIS_URL!, {
+    tls: process.env.REDIS_URL?.startsWith('rediss') ? {} : undefined,
+    retryStrategy: (times) => Math.min(times * 500, 10_000),
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+
+  subscriber.on('connect', () => console.log('[Redis] Subscriber connected'));
+  subscriber.on('error', (err) => console.error('[Redis] Error:', err.message));
+
+  const channel = process.env.REDIS_SIGNAL_CHANNEL ?? 'signals:live';
+
+  subscriber.subscribe(channel, (err, count) => {
+    if (err) { console.error('[Redis] Subscribe failed:', err.message); return; }
+    console.log(`[Redis] Subscribed to "${channel}" (${count} active)`);
+  });
+
+  subscriber.on('message', async (_ch: string, rawMessage: string) => {
+    let signal: SMCSignal;
+    try {
+      signal = JSON.parse(rawMessage) as SMCSignal;
+    } catch {
+      console.warn('[Redis] Failed to parse signal — skipping');
+      return;
+    }
+
+    if (!signal.signal_id || !signal.pair || !signal.type) {
+      console.warn('[Redis] Malformed signal — missing required fields');
+      return;
+    }
+
+    if (isDuplicate(signal)) return;
+
+    console.log(`[Signal] ${signal.type} ${signal.pair} | Score: ${signal.confidence_score}% | RR: ${signal.risk_reward}`);
+
+    saveSignal(signal).catch((err: Error) => console.error('[DB] Persist failed:', err.message));
+
+    signalBus.emitSignal(signal);
+  });
+}
+
+export function stopRedisSubscriber(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!subscriber) return resolve();
+    subscriber.quit().then(() => { console.log('[Redis] Disconnected'); resolve(); });
+  });
+}
