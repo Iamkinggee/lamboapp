@@ -7,7 +7,14 @@ import { useSignalStore } from "../store/useSignalStore";
 import { useAuthStore } from "../store/useAuthStore";
 import type { SMCSignal } from "../services/api";
 
-const WS_URL = process.env.EXPO_PUBLIC_WS_URL ?? "ws://localhost:3001/ws";
+// const WS_URL = process.env.EXPO_PUBLIC_WS_URL ?? "ws://localhost:3001/ws";
+
+const WS_URL = process.env.EXPO_PUBLIC_WS_URL ?? "ws:http://13.40.3.171:3001/ws";
+
+
+
+
+
 const MAX_BACKOFF = 30000;
 
 export function useWebSocket() {

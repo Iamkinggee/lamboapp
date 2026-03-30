@@ -2,15 +2,11 @@
 
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
+import { useAuthStore } from '../store/useAuthStore';
 
-// localhost doesn't reach Docker from a device or emulator.
-// - Android emulator  → 10.0.2.2  (loopback alias)
-// - iOS simulator     → localhost  (shares host network)
-// - Physical device   → set EXPO_PUBLIC_API_URL to your machine's LAN IP
-//                       e.g. http://192.168.1.x:3001  (run `ipconfig` to find it)
 const getFallbackUrl = () => {
-  if (Platform.OS === 'android') return 'http://10.0.2.2:3001';  
-  return 'http://localhost:3001';                                  
+  if (Platform.OS === 'android') return 'http://13.40.3.171:3001';
+  return 'http://13.40.3.171:3001';
 };
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? getFallbackUrl();
@@ -53,59 +49,39 @@ export async function apiRegister(
 }
 
 // ── Token helpers ─────────────────────────────
+
 export async function getToken(): Promise<string | null> {
+  const storeToken = useAuthStore.getState().token;
+  if (storeToken) return storeToken;
+
   const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  if (data.session?.access_token) {
+    useAuthStore.setState({
+      token:  data.session.access_token,
+      userId: data.session.user.id,
+      user:   {},
+    });
+    return data.session.access_token;
+  }
+
+  return null;
 }
 
 export async function saveToken(_token: string): Promise<void> {}
 export async function clearToken(): Promise<void> {}
 
-
-
-
-
-
-
-
-// // ── Base fetch wrapper ────────────────────────
-// async function request<T>(
-//   path: string,
-//   options: RequestInit = {}
-// ): Promise<T> {
-//   const token = await getToken();
-
-//   const headers: Record<string, string> = {
-//     'Content-Type': 'application/json',
-//     ...(options.headers as Record<string, string>),
-//   };
-
-//   if (token) headers['Authorization'] = `Bearer ${token}`;
-
-//   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-
-//   if (!res.ok) {
-//     const body = await res.json().catch(() => ({}));
-//     throw new APIError(
-//       res.status,
-//       (body as { error?: string }).error ?? 'Request failed'
-//     );
-//   }
-
-//   return res.json() as Promise<T>;
-// }
-
-
-
 // ── Base fetch wrapper ────────────────────────
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
   const token = await getToken();
 
-  // 401 debug — remove after fixing
-  console.log('[API] token present:', !!token, 'path:', path);
+  console.log('[API] =============================');
+  console.log('[API] path:', path);
+  console.log('[API] token:', token ? token.substring(0, 20) + '...' : 'NULL');
+  console.log('[API] BASE_URL:', BASE_URL);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -116,10 +92,11 @@ async function request<T>(
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
+  console.log('[API] status:', res.status, path);
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    // Log full error for debugging
-    console.error('[API] Error:', res.status, path, body);
+    console.error('[API] error body:', body);
     throw new APIError(
       res.status,
       (body as { error?: string }).error ?? 'Request failed'
@@ -129,16 +106,6 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
-
-
-
-
-
-
-
-
-
-
 export class APIError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -147,6 +114,7 @@ export class APIError extends Error {
 }
 
 // ── Signals ───────────────────────────────────
+
 export async function fetchSignals(params?: {
   limit?: number;
   offset?: number;
@@ -166,6 +134,7 @@ export async function fetchSignalById(id: string) {
 }
 
 // ── Trades ────────────────────────────────────
+
 export async function logTrade(trade: Omit<TradeLog, 'id' | 'created_at'>) {
   return request<{ trade: TradeLog }>('/trades', {
     method: 'POST',
@@ -181,6 +150,7 @@ export async function fetchTrades(params?: { limit?: number; offset?: number }) 
 }
 
 // ── AI ────────────────────────────────────────
+
 export async function sendChatMessage(message: string) {
   return request<{ response: string }>('/ai/chat', {
     method: 'POST',
@@ -199,6 +169,7 @@ export async function fetchChatHistory() {
 }
 
 // ── User ──────────────────────────────────────
+
 export async function updatePreferences(prefs: Partial<UserPreferences>) {
   return request<{ message: string }>('/user/preferences', {
     method: 'PUT',
@@ -224,6 +195,7 @@ export async function registerFCMToken(fcm_token: string) {
 }
 
 // ── Shared Types ──────────────────────────────
+
 export type SignalType   = 'BUY' | 'SELL';
 export type HTFBias      = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 export type EntryModel   = 'ANTICIPATION' | 'CONFIRMATION';
@@ -280,8 +252,8 @@ export interface TradeStats {
 }
 
 export interface ChatMessage {
-  role:       'user' | 'assistant';
-  content:    string;
+  role:        'user' | 'assistant';
+  content:     string;
   created_at?: string;
 }
 
@@ -293,3 +265,5 @@ export interface UserPreferences {
   notify_all_signals:       boolean;
   notify_bias_change:       boolean;
 }
+
+export const apiAiChat = sendChatMessage;

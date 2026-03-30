@@ -1,25 +1,52 @@
 
+
+
+
+
+
+
+
+
 // // apps/mobile/services/supabase.ts
 // // Supabase client — auth + database
 
 // import { createClient } from "@supabase/supabase-js";
 // import * as SecureStore from "expo-secure-store";
+// import { Platform } from "react-native";
 
 // const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 // const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-// // Custom storage adapter — uses Expo SecureStore (encrypted on device)
+// // Custom storage adapter — SecureStore on native, localStorage on web
+// // expo-secure-store does not support web; falling back prevents runtime crash.
 // const ExpoSecureStoreAdapter = {
-//   getItem: (key: string) => SecureStore.getItemAsync(key),
-//   setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-//   removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+//   getItem: (key: string): Promise<string | null> => {
+//     if (Platform.OS === "web") {
+//       return Promise.resolve(localStorage.getItem(key));
+//     }
+//     return SecureStore.getItemAsync(key);
+//   },
+//   setItem: (key: string, value: string): Promise<void> => {
+//     if (Platform.OS === "web") {
+//       localStorage.setItem(key, value);
+//       return Promise.resolve();
+//     }
+//     return SecureStore.setItemAsync(key, value);
+//   },
+//   removeItem: (key: string): Promise<void> => {
+//     if (Platform.OS === "web") {
+//       localStorage.removeItem(key);
+//       return Promise.resolve();
+//     }
+//     return SecureStore.deleteItemAsync(key);
+//   },
 // };
 
 // export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 //   auth: {
-//     storage: ExpoSecureStoreAdapter,
-//     autoRefreshToken: true,
-//     persistSession: true,
+//     storage:            ExpoSecureStoreAdapter,
+//     autoRefreshToken:   true,
+//     persistSession:     true,
 //     detectSessionInUrl: false,
 //   },
 // });
@@ -40,54 +67,90 @@
 
 
 
-// apps/mobile/services/supabase.ts
-// Supabase client — auth + database
+
+
+
+
+
+// FILE: apps/mobile/services/supabase.ts
 
 import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const supabaseUrl     = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Custom storage adapter — SecureStore on native, localStorage on web
-// expo-secure-store does not support web; falling back prevents runtime crash.
-const ExpoSecureStoreAdapter = {
-  getItem: (key: string): Promise<string | null> => {
-    if (Platform.OS === "web") {
-      return Promise.resolve(localStorage.getItem(key));
+const CHUNK_SIZE = 1800; // safely under SecureStore's 2048 byte limit
+
+const ChunkedSecureStore = {
+  getItem: async (key: string): Promise<string | null> => {
+    if (Platform.OS === "web") return localStorage.getItem(key);
+    try {
+      const countStr = await SecureStore.getItemAsync(`${key}_count`);
+      if (!countStr) return SecureStore.getItemAsync(key); // legacy fallback
+      const count  = parseInt(countStr, 10);
+      const chunks: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const chunk = await SecureStore.getItemAsync(`${key}_${i}`);
+        if (chunk === null) return null;
+        chunks.push(chunk);
+      }
+      return chunks.join("");
+    } catch {
+      return null;
     }
-    return SecureStore.getItemAsync(key);
   },
-  setItem: (key: string, value: string): Promise<void> => {
-    if (Platform.OS === "web") {
-      localStorage.setItem(key, value);
-      return Promise.resolve();
+
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (Platform.OS === "web") { localStorage.setItem(key, value); return; }
+    try {
+      if (value.length <= CHUNK_SIZE) {
+        await SecureStore.setItemAsync(key, value);
+        return;
+      }
+      const chunks: string[] = [];
+      for (let i = 0; i < value.length; i += CHUNK_SIZE) {
+        chunks.push(value.slice(i, i + CHUNK_SIZE));
+      }
+      for (let i = 0; i < chunks.length; i++) {
+        await SecureStore.setItemAsync(`${key}_${i}`, chunks[i]);
+      }
+      await SecureStore.setItemAsync(`${key}_count`, String(chunks.length));
+    } catch (e) {
+      console.error("[SecureStore] setItem failed:", e);
     }
-    return SecureStore.setItemAsync(key, value);
   },
-  removeItem: (key: string): Promise<void> => {
-    if (Platform.OS === "web") {
-      localStorage.removeItem(key);
-      return Promise.resolve();
+
+  removeItem: async (key: string): Promise<void> => {
+    if (Platform.OS === "web") { localStorage.removeItem(key); return; }
+    try {
+      const countStr = await SecureStore.getItemAsync(`${key}_count`);
+      if (countStr) {
+        const count = parseInt(countStr, 10);
+        for (let i = 0; i < count; i++) {
+          await SecureStore.deleteItemAsync(`${key}_${i}`);
+        }
+        await SecureStore.deleteItemAsync(`${key}_count`);
+      } else {
+        await SecureStore.deleteItemAsync(key);
+      }
+    } catch (e) {
+      console.error("[SecureStore] removeItem failed:", e);
     }
-    return SecureStore.deleteItemAsync(key);
   },
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage:            ExpoSecureStoreAdapter,
+    storage:            ChunkedSecureStore,
     autoRefreshToken:   true,
     persistSession:     true,
     detectSessionInUrl: false,
   },
 });
 
-// Helper: get current user id safely
 export const getCurrentUserId = async (): Promise<string | null> => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   return user?.id ?? null;
 };

@@ -17,8 +17,8 @@ from candle_store import CandleStore
 logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────
-BINANCE_WS_BASE   = "wss://stream.binance.com:443/stream"
-BINANCE_REST_BASE = "https://api1.binance.com/api/v3"
+BINANCE_WS_BASE   = "wss://stream.binance.com:9443/stream"
+BINANCE_REST_BASE = "https://api.binance.com/api/v3"
 RECONNECT_BASE    = 1
 RECONNECT_MAX     = 30
 PING_INTERVAL     = 20

@@ -1,42 +1,3 @@
-// // ──────────────────────────────────────────────
-// // apps/mobile/app/(tabs)/_layout.tsx
-// // Bottom tab navigator
-// // ──────────────────────────────────────────────
-// import React from 'react';
-// import { Tabs } from 'expo-router';
-// import { colors, font } from '../../utils/theme';
-
-// export default function TabsLayout() {
-//   return (
-//     <Tabs
-//       screenOptions={{
-//         tabBarStyle: {
-//           backgroundColor:  colors.surface,
-//           borderTopColor:   colors.border,
-//           borderTopWidth:   1,
-//           height:           60,
-//           paddingBottom:    8,
-//         },
-//         tabBarActiveTintColor:   colors.accentBlue,
-//         tabBarInactiveTintColor: colors.textMuted,
-//         tabBarLabelStyle:        { fontSize: font.size.xs, fontWeight: font.weight.medium },
-//         headerShown: false,
-//       }}
-//     >
-//       <Tabs.Screen name="signals"  options={{ title: 'Signals',  tabBarIcon: ({ color }) => <TabIcon icon="◆" color={color} /> }} />
-//       <Tabs.Screen name="ai-chat"  options={{ title: 'AI Mentor', tabBarIcon: ({ color }) => <TabIcon icon="✦" color={color} /> }} />
-//       <Tabs.Screen name="history"  options={{ title: 'History',  tabBarIcon: ({ color }) => <TabIcon icon="▤" color={color} /> }} />
-//       <Tabs.Screen name="profile"  options={{ title: 'Profile',  tabBarIcon: ({ color }) => <TabIcon icon="◉" color={color} /> }} />
-//     </Tabs>
-//   );
-// }
-
-// function TabIcon({ icon, color }: { icon: string; color: string }) {
-//   const { Text } = require('react-native');
-//   return <Text style={{ color, fontSize: 18 }}>{icon}</Text>;
-// }
-
-
 
 
 
@@ -107,3 +68,8 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+
+
+
+
