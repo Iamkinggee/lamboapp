@@ -46,6 +46,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       notify_bias_change:       true,
     });
 
+    // Return Supabase session token directly
     const token = data.session?.access_token ?? '';
 
     return reply.code(201).send({
@@ -54,7 +55,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         id:          data.user.id,
         email:       data.user.email,
         name,
-        skill_level: skill_level.toUpperCase(),
+        skill_level: skill_level.toUpperCase() as any,
       },
     });
   });
@@ -90,6 +91,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
     const skill_level = (prefData as { skill_level?: string } | null)?.skill_level ?? 'BEGINNER';
 
+    // Return Supabase session token directly — verified by ES256 public key
     return reply.send({
       token: data.session.access_token,
       user: {

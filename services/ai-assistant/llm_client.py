@@ -66,7 +66,7 @@ def _chat_groq(system_prompt: str, messages: list[dict], max_tokens: int) -> str
         full_messages = [{"role": "system", "content": system_prompt}] + messages
 
         response = client.chat.completions.create(
-            model      = "llama3-70b-8192",   # Free tier — fastest Groq model
+            model      = "llama-3.3-70b-versatile",   # Free tier — fastest Groq model
             messages   = full_messages,
             max_tokens = max_tokens,
             temperature= 0.4,                 # Lower = more consistent SMC analysis
