@@ -1,4 +1,7 @@
-// FILE: apps/backend/src/middleware/auth.ts
+
+
+
+// FILE: services/api-server/src/middleware/auth.ts
 
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -13,7 +16,7 @@ export interface JWTPayload {
 
 // Cache JWKS — fetched once, reused across all requests
 const JWKS = createRemoteJWKSet(
-  new URL(`${process.env.SUPABASE_URL}/auth/v1/keys`)
+  new URL(`${process.env.SUPABASE_URL}/auth/v1/.well-known/jwks`)  // ✅ fixed endpoint
 );
 
 export async function authenticate(
@@ -30,7 +33,8 @@ export async function authenticate(
     const token = authHeader.slice(7);
 
     const { payload } = await jwtVerify(token, JWKS, {
-      issuer: `${process.env.SUPABASE_URL}/auth/v1`,
+      issuer:   `${process.env.SUPABASE_URL}/auth/v1`,
+      audience: 'authenticated',
     });
 
     // Attach parsed user to request for use in route handlers

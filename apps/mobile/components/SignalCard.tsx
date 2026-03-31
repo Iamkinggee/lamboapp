@@ -1,8 +1,5 @@
 
 
-
-
-
 // FILE: apps/mobile/components/SignalCard.tsx
 import {
   View, Text, StyleSheet, TouchableOpacity,
@@ -33,6 +30,7 @@ function timeAgo(ts: number): string {
 
 export default function SignalCard({ signal, onPress }: Props) {
   const isBuy = signal.type === "BUY";
+ 
 
   return (
     <TouchableOpacity
@@ -46,11 +44,23 @@ export default function SignalCard({ signal, onPress }: Props) {
           <Text style={styles.pair}>{signal.pair.replace("USDT", "")}</Text>
           <Text style={styles.pairQuote}>/USDT</Text>
         </View>
-        <View style={[styles.badge, isBuy ? styles.badgeBuy : styles.badgeSell]}>
+
+
+
+        {/* <View style={[styles.badge, isBuy ? styles.badgeBuy : styles.badgeSell]}>
           <Text style={[styles.badgeText, { color: isBuy ? Colors.green : Colors.red }]}>
             {signal.type}
           </Text>
-        </View>
+        </View> */}
+
+        <View style={[styles.badge, isBuy ? styles.badgeBuy : styles.badgeSell]}>
+  <Text style={[styles.badgeText, { color: isBuy ? Colors.green : Colors.red }]}>
+    {isBuy ? "🟢 LONG" : "🔴 SHORT"}
+  </Text>
+</View>
+
+
+
         <Text style={styles.time}>{timeAgo(signal.timestamp)}</Text>
       </View>
 
@@ -76,7 +86,7 @@ export default function SignalCard({ signal, onPress }: Props) {
         <Text style={styles.rrValue}>1:{signal.risk_reward}</Text>
         <Text style={styles.entry}>Entry {signal.entry}</Text>
         <TouchableOpacity style={styles.explainBtn} onPress={onPress}>
-          <Text style={styles.explainText}>Explain →</Text>
+          <Text style={styles.explainText}>Analysis</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -98,7 +108,7 @@ const styles = StyleSheet.create({
   pairQuote:{ fontSize: 12, color: Colors.muted },
 
   badge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
-  badgeBuy:  { backgroundColor: "rgba(0,200,150,0.12)", borderColor: "rgba(0,200,150,0.3)" },
+  badgeBuy:  { backgroundColor: "rgba(0, 188, 141, 0.12)", borderColor: "rgba(0,200,150,0.3)" },
   badgeSell: { backgroundColor: "rgba(255,71,87,0.12)", borderColor: "rgba(255,71,87,0.3)"  },
   badgeText: { fontSize: 11, fontWeight: "800" },
   time:      { fontSize: 11, color: Colors.muted, marginLeft: "auto" },
@@ -116,6 +126,6 @@ const styles = StyleSheet.create({
   rrLabel:   { fontSize: 11, color: Colors.muted },
   rrValue:   { fontSize: 13, fontWeight: "800", color: Colors.text },
   entry:     { flex: 1, fontSize: 12, color: Colors.muted },
-  explainBtn:{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "rgba(123,47,190,0.15)", borderRadius: 8, borderWidth: 1, borderColor: "rgba(123,47,190,0.3)" },
-  explainText:{ fontSize: 12, color: Colors.accentPurple, fontWeight: "700" },
+  explainBtn:{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "rgba(31, 9, 51, 0.15)", borderRadius: 8, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.3)" },
+  explainText:{ fontSize: 12, color: Colors.text, fontWeight: "700" },
 });

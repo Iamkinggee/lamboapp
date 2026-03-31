@@ -4,7 +4,8 @@
 import { create } from 'zustand';
 import { SMCSignal } from '../services/api';
 
-type Filter = 'ALL' | 'BUY' | 'SELL' | 'HIGH';
+// type Filter = 'ALL' | 'BUY' | 'SELL' | 'HIGH';
+type Filter = 'all' | 'BUY' | 'SELL' | 'high';
 
 export interface SignalState {
   signals:      SMCSignal[];
@@ -28,7 +29,7 @@ const MAX_SIGNALS = 50;
 
 export const useSignalStore = create<SignalState>((set, get) => ({
   signals:      [],
-  activeFilter: 'ALL',
+  activeFilter: 'all',
   isConnected:  false,
   unreadCount:  0,
 
@@ -62,8 +63,11 @@ export const useSignalStore = create<SignalState>((set, get) => ({
     switch (activeFilter) {
       case 'BUY':  return signals.filter((s) => s.type === 'BUY');
       case 'SELL': return signals.filter((s) => s.type === 'SELL');
-      case 'HIGH': return signals.filter((s) => s.confidence_score >= 80);
+      case 'high': return signals.filter((s) => s.confidence_score >= 80);
       default:     return signals;
     }
   },
 }));
+
+
+

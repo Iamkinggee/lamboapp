@@ -158,11 +158,24 @@ export async function sendChatMessage(message: string) {
   });
 }
 
+// export async function explainSignal(signalId: string) {
+//   return request<{ explanation: string }>(`/ai/explain/${signalId}`, {
+//     method: 'POST',
+//   });
+// }
+
+
 export async function explainSignal(signalId: string) {
   return request<{ explanation: string }>(`/ai/explain/${signalId}`, {
     method: 'POST',
+    body: JSON.stringify({}),
   });
 }
+
+
+
+
+
 
 export async function fetchChatHistory() {
   return request<{ history: ChatMessage[] }>('/ai/history');
