@@ -5,7 +5,7 @@
 
 import 'dotenv/config';
 import Fastify from 'fastify';
-import fastifyJwt from '@fastify/jwt';
+
 import fastifyCors from '@fastify/cors';
 import fastifyWebSocket from '@fastify/websocket';
 import fastifyRateLimit from '@fastify/rate-limit';
@@ -37,10 +37,6 @@ async function buildServer() {
     allowedHeaders: ['Authorization', 'Content-Type'],
   });
 
-  await fastify.register(fastifyJwt, {
-    secret: process.env.SUPABASE_JWT_SECRET!,
-    sign: { expiresIn: process.env.JWT_EXPIRES_IN ?? '7d' },
-  });
 
   await fastify.register(fastifyWebSocket);
 
