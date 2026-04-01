@@ -1,51 +1,280 @@
 
 
-// FILE: apps/mobile/app/signal/[id].tsx
+// // FILE: apps/mobile/app/signal/[id].tsx
+// import {
+//   View, Text, StyleSheet, ScrollView, TouchableOpacity,
+//   ActivityIndicator, Share,
+// } from "react-native";
+// import { useLocalSearchParams, router } from "expo-router";
+// import { useQuery } from "@tanstack/react-query";
+// // import { apiFetchSignal, apiExplainSignal } from "../../services/api";
+// import { fetchSignalById, explainSignal } from "../../services/api";
+
+// import ConfidenceBar from "../../components/ConfidenceBar";
+// import { Colors } from "../../utils/theme";
+
+// export default function SignalDetailScreen() {
+//   const { id } = useLocalSearchParams<{ id: string }>();
+
+ 
+
+//   const { data, isLoading } = useQuery({
+//   queryKey: ["signal", id],
+//   queryFn:  () => fetchSignalById(id!),
+//   enabled:  !!id,
+// });
+
+// const signal = data?.signal; 
+
+
+//   // const { data: explanation, isLoading: explLoading } = useQuery({
+//   //   queryKey: ["signal-explain", id],
+//   //   queryFn:  () => explainSignal(id!),
+//   //   enabled:  !!id,
+//   // });
+
+
+//   const { data: explData, isLoading: explLoading } = useQuery({
+//   queryKey: ["signal-explain", id],
+//   queryFn:  () => explainSignal(id!),
+//   enabled:  !!id,
+// });
+// // then use: explData?.explanation
+
+//   if (isLoading || !signal) {
+//     return (
+//       <View style={styles.loadingWrap}>
+//         <ActivityIndicator color={Colors.accent} size="large" />
+//       </View>
+//     );
+//   }
+
+//   const isBuy = signal.type === "BUY";
+
+//   const handleShare = async () => {
+//     await Share.share({
+//       message: `SMC Signal: ${signal.pair} ${signal.type}\nEntry: ${signal.entry} | SL: ${signal.stop_loss} | TP: ${signal.take_profit}\nRR: 1:${signal.risk_reward} | Confidence: ${signal.confidence_score}%\nConfluences: ${signal.confluences.join(", ")}`,
+//     });
+//   };
+
+//   return (
+//     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+//       {/* Hero */}
+//       <View style={styles.hero}>
+//         <View style={styles.heroLeft}>
+//           <Text style={styles.pair}>{signal.pair}</Text>
+//           <View style={[styles.typeBadge, { backgroundColor: isBuy ? "rgba(0,200,150,0.15)" : "rgba(255,71,87,0.15)", borderColor: isBuy ? Colors.green : Colors.red }]}>
+//             <Text style={[styles.typeText, { color: isBuy ? Colors.green : Colors.red }]}>
+//               {signal.type}
+//             </Text>
+//           </View>
+//         </View>
+//         <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
+//           <Text style={styles.shareBtnText}>Share ↑</Text>
+//         </TouchableOpacity>
+//       </View>
+
+//       {/* Confidence */}
+//       <View style={styles.section}>
+//         <Text style={styles.sectionLabel}>CONFIDENCE SCORE</Text>
+//         <ConfidenceBar score={signal.confidence_score} large />
+//       </View>
+
+//       {/* Trade params */}
+//       <View style={styles.priceGrid}>
+//         {[
+//           { label: "ENTRY",     value: signal.entry,       color: Colors.text  },
+//           { label: "STOP LOSS", value: signal.stop_loss,   color: Colors.red   },
+//           { label: "TAKE PROFIT",value: signal.take_profit, color: Colors.green },
+//           { label: "RISK/REWARD",value: `1:${signal.risk_reward}`, color: Colors.accent },
+//         ].map(({ label, value, color }) => (
+//           <View key={label} style={styles.priceCard}>
+//             <Text style={styles.priceLabel}>{label}</Text>
+//             <Text style={[styles.priceValue, { color }]}>{value}</Text>
+//           </View>
+//         ))}
+//       </View>
+
+//       {/* HTF Bias */}
+//       <View style={[styles.biasBanner, { borderColor: signal.htf_bias === "BULLISH" ? Colors.green : Colors.red }]}>
+//         <Text style={styles.biasLabel}>HTF BIAS</Text>
+//         <Text style={[styles.biasValue, { color: signal.htf_bias === "BULLISH" ? Colors.green : Colors.red }]}>
+//           {signal.htf_bias}
+//         </Text>
+//       </View>
+
+//       {/* Confluences */}
+//       <View style={styles.section}>
+//         <Text style={styles.sectionLabel}>CONFLUENCES</Text>
+//         {signal.confluences.map((c: string) => (
+//           <View key={c} style={styles.conflRow}>
+//             <View style={styles.conflDot} />
+//             <Text style={styles.conflText}>{c}</Text>
+//           </View>
+//         ))}
+//       </View>
+
+//       {/* AI Explanation */}
+//       <View style={styles.section}>
+//         <Text style={styles.sectionLabel}>AI EXPLANATION</Text>
+//         <View style={styles.explanationBox}>
+//           {explLoading ? (
+//             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+//               <ActivityIndicator color={Colors.accentPurple} size="small" />
+//               <Text style={{ color: Colors.muted, fontSize: 13 }}>Generating explanation...</Text>
+//             </View>
+//           ) : (
+//             <Text style={styles.explanationText}>
+//               {explData?.explanation ?? signal.ai_explanation ?? "No explanation available."}
+//             </Text>
+//           )}
+//         </View>
+//       </View>
+
+//       {/* Log Trade Button */}
+//       <TouchableOpacity
+//         style={styles.logBtn}
+//         onPress={() => router.push("/(tabs)/history")}
+//         activeOpacity={0.8}
+//       >
+//         <Text style={styles.logBtnText}>Log This Trade →</Text>
+//       </TouchableOpacity>
+
+//       <View style={{ height: 40 }} />
+//     </ScrollView>
+//   );
+// }
+
+// const styles = StyleSheet.create({
+//   container:   { flex: 1, backgroundColor: Colors.bg },
+//   loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Colors.bg },
+
+//   hero: {
+//     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+//     paddingHorizontal: 20, paddingVertical: 20,
+//   },
+//   heroLeft:  { flexDirection: "row", alignItems: "center", gap: 12 },
+//   pair:      { fontSize: 24, fontWeight: "800", color: Colors.text, letterSpacing: -0.5 },
+//   typeBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+//   typeText:  { fontSize: 13, fontWeight: "800" },
+//   shareBtn:  { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.border },
+//   shareBtnText: { color: Colors.muted, fontSize: 12, fontWeight: "600" },
+
+//   section: { paddingHorizontal: 20, paddingBottom: 20 },
+//   sectionLabel: { fontSize: 11, color: Colors.muted, letterSpacing: 2, fontWeight: "700", marginBottom: 12 },
+
+//   priceGrid: {
+//     flexDirection: "row", flexWrap: "wrap",
+//     paddingHorizontal: 16, gap: 10, marginBottom: 20,
+//   },
+//   priceCard: {
+//     flex: 1, minWidth: "45%",
+//     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+//     borderRadius: 12, padding: 14,
+//   },
+//   priceLabel:{ fontSize: 10, color: Colors.muted, letterSpacing: 1.5, fontWeight: "700", marginBottom: 6 },
+//   priceValue:{ fontSize: 18, fontWeight: "800", letterSpacing: -0.5 },
+
+//   biasBanner: {
+//     marginHorizontal: 20, marginBottom: 20, padding: 14, borderRadius: 12,
+//     borderWidth: 1, backgroundColor: Colors.surface,
+//     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+//   },
+//   biasLabel: { fontSize: 11, color: Colors.muted, letterSpacing: 2, fontWeight: "700" },
+//   biasValue: { fontSize: 16, fontWeight: "800", letterSpacing: 1 },
+
+//   conflRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
+//   conflDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },
+//   conflText:{ fontSize: 14, color: Colors.text, fontWeight: "600" },
+
+//   explanationBox: {
+//     backgroundColor: Colors.surface, borderWidth: 1,
+//     borderColor: Colors.accentPurple + "44", borderRadius: 12, padding: 16,
+//   },
+//   explanationText: { fontSize: 14, color: Colors.text, lineHeight: 22 },
+
+//   logBtn: {
+//     marginHorizontal: 20, backgroundColor: Colors.accent,
+//     borderRadius: 12, padding: 16, alignItems: "center",
+//   },
+//   logBtnText: { color: "#000", fontSize: 14, fontWeight: "800" },
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+// apps/mobile/app/signal/[id].tsx
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Share,
+  ActivityIndicator, Share, Alert,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-// import { apiFetchSignal, apiExplainSignal } from "../../services/api";
 import { fetchSignalById, explainSignal } from "../../services/api";
-
+import { useWatchlistStore } from "../../store/useWatchlistStore";
 import ConfidenceBar from "../../components/ConfidenceBar";
 import { Colors } from "../../utils/theme";
 
 export default function SignalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  // const { data: signal, isLoading } = useQuery({
-  //   queryKey: ["signal", id],
-  //   queryFn:  () => fetchSignalById(id!),
-  //   enabled:  !!id,
-  // });
-
-
-
   const { data, isLoading } = useQuery({
-  queryKey: ["signal", id],
-  queryFn:  () => fetchSignalById(id!),
-  enabled:  !!id,
-});
-
-const signal = data?.signal; 
-
-
-  // const { data: explanation, isLoading: explLoading } = useQuery({
-  //   queryKey: ["signal-explain", id],
-  //   queryFn:  () => explainSignal(id!),
-  //   enabled:  !!id,
-  // });
-
+    queryKey: ["signal", id],
+    queryFn:  () => fetchSignalById(id!),
+    enabled:  !!id,
+  });
 
   const { data: explData, isLoading: explLoading } = useQuery({
-  queryKey: ["signal-explain", id],
-  queryFn:  () => explainSignal(id!),
-  enabled:  !!id,
-});
-// then use: explData?.explanation
+    queryKey: ["signal-explain", id],
+    queryFn:  () => explainSignal(id!),
+    enabled:  !!id,
+  });
+
+  const signal = data?.signal;
+
+  const { addToWatchlist, removeFromWatchlist, isWatched } = useWatchlistStore();
+  const watched = signal ? isWatched(signal.signal_id) : false;
+
+  const handleWatchlist = async () => {
+    if (!signal) return;
+    if (watched) {
+      Alert.alert(
+        "Remove from Watchlist",
+        "Stop watching this signal?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove", style: "destructive",
+            onPress: async () => {
+              await removeFromWatchlist(signal.signal_id);
+            },
+          },
+        ]
+      );
+    } else {
+      await addToWatchlist(signal);
+      Alert.alert(
+        "Added to Watchlist ✓",
+        `${signal.pair} ${signal.type} is now in your watchlist. Go to History → Watchlist to track and close it.`,
+        [{ text: "OK" }]
+      );
+    }
+  };
+
+  const handleShare = async () => {
+    if (!signal) return;
+    await Share.share({
+      message: `SMC Signal: ${signal.pair} ${signal.type}\nEntry: ${signal.entry} | SL: ${signal.stop_loss} | TP: ${signal.take_profit}\nRR: 1:${signal.risk_reward} | Confidence: ${signal.confidence_score}%\nConfluences: ${signal.confluences.join(", ")}`,
+    });
+  };
 
   if (isLoading || !signal) {
     return (
@@ -57,27 +286,28 @@ const signal = data?.signal;
 
   const isBuy = signal.type === "BUY";
 
-  const handleShare = async () => {
-    await Share.share({
-      message: `SMC Signal: ${signal.pair} ${signal.type}\nEntry: ${signal.entry} | SL: ${signal.stop_loss} | TP: ${signal.take_profit}\nRR: 1:${signal.risk_reward} | Confidence: ${signal.confidence_score}%\nConfluences: ${signal.confluences.join(", ")}`,
-    });
-  };
-
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Hero */}
       <View style={styles.hero}>
-        <View style={styles.heroLeft}>
-          <Text style={styles.pair}>{signal.pair}</Text>
-          <View style={[styles.typeBadge, { backgroundColor: isBuy ? "rgba(0,200,150,0.15)" : "rgba(255,71,87,0.15)", borderColor: isBuy ? Colors.green : Colors.red }]}>
-            <Text style={[styles.typeText, { color: isBuy ? Colors.green : Colors.red }]}>
-              {signal.type}
-            </Text>
-          </View>
-        </View>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backBtnText}>← Back</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
           <Text style={styles.shareBtnText}>Share ↑</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.pairRow}>
+        <Text style={styles.pair}>{signal.pair}</Text>
+        <View style={[
+          styles.typeBadge,
+          { backgroundColor: isBuy ? "rgba(0,200,150,0.15)" : "rgba(255,71,87,0.15)", borderColor: isBuy ? Colors.green : Colors.red }
+        ]}>
+          <Text style={[styles.typeText, { color: isBuy ? Colors.green : Colors.red }]}>
+            {isBuy ? "🟢 LONG" : "🔴 SHORT"}
+          </Text>
+        </View>
       </View>
 
       {/* Confidence */}
@@ -89,10 +319,10 @@ const signal = data?.signal;
       {/* Trade params */}
       <View style={styles.priceGrid}>
         {[
-          { label: "ENTRY",     value: signal.entry,       color: Colors.text  },
-          { label: "STOP LOSS", value: signal.stop_loss,   color: Colors.red   },
-          { label: "TAKE PROFIT",value: signal.take_profit, color: Colors.green },
-          { label: "RISK/REWARD",value: `1:${signal.risk_reward}`, color: Colors.accent },
+          { label: "ENTRY",      value: signal.entry,               color: Colors.text   },
+          { label: "STOP LOSS",  value: signal.stop_loss,           color: Colors.red    },
+          { label: "TAKE PROFIT",value: signal.take_profit,         color: Colors.green  },
+          { label: "RISK/REWARD",value: `1:${signal.risk_reward}`,  color: Colors.accent },
         ].map(({ label, value, color }) => (
           <View key={label} style={styles.priceCard}>
             <Text style={styles.priceLabel}>{label}</Text>
@@ -107,6 +337,7 @@ const signal = data?.signal;
         <Text style={[styles.biasValue, { color: signal.htf_bias === "BULLISH" ? Colors.green : Colors.red }]}>
           {signal.htf_bias}
         </Text>
+        <Text style={styles.biasTF}>{signal.htf_timeframe} · {signal.timeframe}</Text>
       </View>
 
       {/* Confluences */}
@@ -122,12 +353,12 @@ const signal = data?.signal;
 
       {/* AI Explanation */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>AI EXPLANATION</Text>
+        <Text style={styles.sectionLabel}>AI ANALYSIS</Text>
         <View style={styles.explanationBox}>
           {explLoading ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <ActivityIndicator color={Colors.accentPurple} size="small" />
-              <Text style={{ color: Colors.muted, fontSize: 13 }}>Generating explanation...</Text>
+              <Text style={{ color: Colors.muted, fontSize: 13 }}>Generating analysis...</Text>
             </View>
           ) : (
             <Text style={styles.explanationText}>
@@ -137,16 +368,32 @@ const signal = data?.signal;
         </View>
       </View>
 
-      {/* Log Trade Button */}
-      <TouchableOpacity
-        style={styles.logBtn}
-        onPress={() => router.push("/(tabs)/history")}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.logBtnText}>Log This Trade →</Text>
-      </TouchableOpacity>
+      {/* ── Action buttons ── */}
+      <View style={styles.actions}>
+        {/* Add / Remove Watchlist */}
+        <TouchableOpacity
+          style={[styles.watchBtn, watched && styles.watchBtnActive]}
+          onPress={handleWatchlist}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.watchBtnText, watched && styles.watchBtnTextActive]}>
+            {watched ? "👁 Watching — Tap to Remove" : "👁 Add to Watchlist"}
+          </Text>
+        </TouchableOpacity>
 
-      <View style={{ height: 40 }} />
+        {/* Go to watchlist */}
+        {watched && (
+          <TouchableOpacity
+            style={styles.viewWatchlistBtn}
+            onPress={() => router.push("/(tabs)/history")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.viewWatchlistBtnText}>View Watchlist →</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={{ height: 48 }} />
     </ScrollView>
   );
 }
@@ -157,16 +404,22 @@ const styles = StyleSheet.create({
 
   hero: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 20, paddingVertical: 20,
+    paddingHorizontal: 20, paddingTop: 56, paddingBottom: 8,
   },
-  heroLeft:  { flexDirection: "row", alignItems: "center", gap: 12 },
-  pair:      { fontSize: 24, fontWeight: "800", color: Colors.text, letterSpacing: -0.5 },
-  typeBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
-  typeText:  { fontSize: 13, fontWeight: "800" },
-  shareBtn:  { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.border },
+  backBtn:      { paddingVertical: 8, paddingRight: 16 },
+  backBtnText:  { color: Colors.accent, fontSize: 14, fontWeight: "700" },
+  shareBtn:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.border },
   shareBtnText: { color: Colors.muted, fontSize: 12, fontWeight: "600" },
 
-  section: { paddingHorizontal: 20, paddingBottom: 20 },
+  pairRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 20, paddingBottom: 20,
+  },
+  pair:      { fontSize: 28, fontWeight: "800", color: Colors.text, letterSpacing: -0.5 },
+  typeBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  typeText:  { fontSize: 13, fontWeight: "800" },
+
+  section:      { paddingHorizontal: 20, paddingBottom: 20 },
   sectionLabel: { fontSize: 11, color: Colors.muted, letterSpacing: 2, fontWeight: "700", marginBottom: 12 },
 
   priceGrid: {
@@ -178,16 +431,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     borderRadius: 12, padding: 14,
   },
-  priceLabel:{ fontSize: 10, color: Colors.muted, letterSpacing: 1.5, fontWeight: "700", marginBottom: 6 },
-  priceValue:{ fontSize: 18, fontWeight: "800", letterSpacing: -0.5 },
+  priceLabel: { fontSize: 10, color: Colors.muted, letterSpacing: 1.5, fontWeight: "700", marginBottom: 6 },
+  priceValue: { fontSize: 18, fontWeight: "800", letterSpacing: -0.5 },
 
   biasBanner: {
     marginHorizontal: 20, marginBottom: 20, padding: 14, borderRadius: 12,
     borderWidth: 1, backgroundColor: Colors.surface,
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    flexDirection: "row", alignItems: "center", gap: 12,
   },
   biasLabel: { fontSize: 11, color: Colors.muted, letterSpacing: 2, fontWeight: "700" },
-  biasValue: { fontSize: 16, fontWeight: "800", letterSpacing: 1 },
+  biasValue: { fontSize: 16, fontWeight: "800", letterSpacing: 1, flex: 1 },
+  biasTF:    { fontSize: 11, color: Colors.muted, fontWeight: "600" },
 
   conflRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   conflDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },
@@ -199,9 +453,25 @@ const styles = StyleSheet.create({
   },
   explanationText: { fontSize: 14, color: Colors.text, lineHeight: 22 },
 
-  logBtn: {
-    marginHorizontal: 20, backgroundColor: Colors.accent,
-    borderRadius: 12, padding: 16, alignItems: "center",
+  actions: { paddingHorizontal: 20, gap: 10 },
+
+  watchBtn: {
+    backgroundColor: Colors.surface, borderWidth: 1.5,
+    borderColor: Colors.accent, borderRadius: 12,
+    padding: 16, alignItems: "center",
   },
-  logBtnText: { color: "#000", fontSize: 14, fontWeight: "800" },
+  watchBtnActive: {
+    backgroundColor: "rgba(0,212,255,0.12)",
+  },
+  watchBtnText: {
+    color: Colors.accent, fontSize: 14, fontWeight: "800",
+  },
+  watchBtnTextActive: {
+    color: Colors.accent,
+  },
+  viewWatchlistBtn: {
+    backgroundColor: Colors.accent, borderRadius: 12,
+    padding: 16, alignItems: "center",
+  },
+  viewWatchlistBtnText: { color: "#000", fontSize: 14, fontWeight: "800" },
 });

@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import { supabase } from "../services/supabase";
+import { supabase, sessionReady } from "../services/supabase";
 
 const TOKEN_KEY = "smc_jwt_token";
 const USER_KEY  = "smc_user_id";
@@ -37,7 +37,7 @@ interface AuthState {
   hydrate:           () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   token:       null,
   userId:      null,
   skillLevel:  "beginner",
@@ -56,7 +56,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ token, userId, user: {} });
   },
 
-  // ← key fix: sign out from Supabase so session is fully cleared
   logout: async () => {
     await supabase.auth.signOut();
     await storage.delete(TOKEN_KEY);
@@ -70,10 +69,50 @@ export const useAuthStore = create<AuthState>((set) => ({
     set((state) => ({ preferences: { ...state.preferences, ...prefs } })),
 
   hydrate: async () => {
-    const token  = await storage.get(TOKEN_KEY);
-    const userId = await storage.get(USER_KEY);
-    if (token && userId) {
-      set({ token, userId, user: {} });
+    try {
+      // Wait for Supabase to finish reading from SecureStore before querying session
+      await sessionReady;
+
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error || !data.session) {
+        await storage.delete(TOKEN_KEY);
+        await storage.delete(USER_KEY);
+        set({ token: null, userId: null, user: null });
+        return;
+      }
+
+      const { access_token, expires_at, user } = data.session;
+      const now = Math.floor(Date.now() / 1000);
+
+      if (expires_at && expires_at - now <= 60) {
+        console.log('[Auth] Token expiring — refreshing during hydrate...');
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError || !refreshed.session) {
+          console.warn('[Auth] Refresh failed during hydrate — clearing session');
+          await storage.delete(TOKEN_KEY);
+          await storage.delete(USER_KEY);
+          set({ token: null, userId: null, user: null });
+          return;
+        }
+
+        const newToken = refreshed.session.access_token;
+        await storage.set(TOKEN_KEY, newToken);
+        await storage.set(USER_KEY, refreshed.session.user.id);
+        set({ token: newToken, userId: refreshed.session.user.id, user: {} });
+        console.log('[Auth] Hydrated with refreshed token');
+        return;
+      }
+
+      await storage.set(TOKEN_KEY, access_token);
+      await storage.set(USER_KEY, user.id);
+      set({ token: access_token, userId: user.id, user: {} });
+      console.log('[Auth] Hydrated with valid token');
+
+    } catch (err) {
+      console.error('[Auth] Hydrate error:', err);
+      set({ token: null, userId: null, user: null });
     }
   },
 }));

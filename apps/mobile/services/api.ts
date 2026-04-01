@@ -1,14 +1,10 @@
 // FILE: apps/mobile/services/api.ts
 
 import { Platform } from 'react-native';
-import { supabase } from './supabase';
+import { supabase, sessionReady } from './supabase';
 import { useAuthStore } from '../store/useAuthStore';
 
-const getFallbackUrl = () => {
-  if (Platform.OS === 'android') return 'http://13.40.3.171:3001';
-  return 'http://13.40.3.171:3001';
-};
-
+const getFallbackUrl = () => 'http://13.40.3.171:3001';
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? getFallbackUrl();
 
 // ── Auth ──────────────────────────────────────
@@ -19,10 +15,7 @@ export async function apiLogin(
 ): Promise<{ token: string; userId: string }> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new Error(error.message);
-  return {
-    token:  data.session.access_token,
-    userId: data.user.id,
-  };
+  return { token: data.session.access_token, userId: data.user.id };
 }
 
 export async function apiRegister(
@@ -34,37 +27,58 @@ export async function apiRegister(
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: {
-      data: { name, skill_level: skillLevel },
-    },
+    options: { data: { name, skill_level: skillLevel } },
   });
   if (error) throw new Error(error.message);
   if (!data.session) {
     throw new Error('Please check your email and confirm your account before signing in.');
   }
-  return {
-    token:  data.session.access_token,
-    userId: data.user!.id,
-  };
+  return { token: data.session.access_token, userId: data.user!.id };
 }
 
 // ── Token helpers ─────────────────────────────
 
 export async function getToken(): Promise<string | null> {
-  const storeToken = useAuthStore.getState().token;
-  if (storeToken) return storeToken;
+  await sessionReady;
 
-  const { data } = await supabase.auth.getSession();
-  if (data.session?.access_token) {
-    useAuthStore.setState({
-      token:  data.session.access_token,
-      userId: data.session.user.id,
-      user:   {},
-    });
-    return data.session.access_token;
+  const { data, error } = await supabase.auth.getSession();
+
+  console.log('[Token] getSession error:', error?.message ?? 'none');
+  console.log('[Token] session exists:', !!data.session);
+  console.log('[Token] expires_at:', data.session?.expires_at);
+  console.log('[Token] now:', Math.floor(Date.now() / 1000));
+
+  if (error || !data.session) {
+    console.warn('[Token] No active session found');
+    return null;
   }
 
-  return null;
+  const { access_token, expires_at, user } = data.session;
+  const now = Math.floor(Date.now() / 1000);
+
+  if (expires_at && expires_at - now > 60) {
+    if (useAuthStore.getState().token !== access_token) {
+      await useAuthStore.getState().login(access_token, user.id);
+    }
+    return access_token;
+  }
+
+  console.log('[Token] Expiring/expired — refreshing...');
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+
+  console.log('[Token] Refresh error:', refreshError?.message ?? 'none');
+  console.log('[Token] Refreshed session exists:', !!refreshed.session);
+
+  if (refreshError || !refreshed.session) {
+    console.error('[Token] Refresh failed — clearing session');
+    await useAuthStore.getState().logout();
+    return null;
+  }
+
+  const newToken = refreshed.session.access_token;
+  await useAuthStore.getState().login(newToken, refreshed.session.user.id);
+  console.log('[Token] Refreshed successfully');
+  return newToken;
 }
 
 export async function saveToken(_token: string): Promise<void> {}
@@ -72,10 +86,7 @@ export async function clearToken(): Promise<void> {}
 
 // ── Base fetch wrapper ────────────────────────
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
 
   console.log('[API] =============================');
@@ -97,10 +108,7 @@ async function request<T>(
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     console.error('[API] error body:', body);
-    throw new APIError(
-      res.status,
-      (body as { error?: string }).error ?? 'Request failed'
-    );
+    throw new APIError(res.status, (body as { error?: string }).error ?? 'Request failed');
   }
 
   return res.json() as Promise<T>;
@@ -158,24 +166,12 @@ export async function sendChatMessage(message: string) {
   });
 }
 
-// export async function explainSignal(signalId: string) {
-//   return request<{ explanation: string }>(`/ai/explain/${signalId}`, {
-//     method: 'POST',
-//   });
-// }
-
-
 export async function explainSignal(signalId: string) {
   return request<{ explanation: string }>(`/ai/explain/${signalId}`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
 }
-
-
-
-
-
 
 export async function fetchChatHistory() {
   return request<{ history: ChatMessage[] }>('/ai/history');
@@ -191,13 +187,10 @@ export async function updatePreferences(prefs: Partial<UserPreferences>) {
 }
 
 export async function updateSkillLevel(skill_level: SkillLevel) {
-  return request<{ message: string; skill_level: SkillLevel }>(
-    '/user/skill-level',
-    {
-      method: 'PUT',
-      body: JSON.stringify({ skill_level }),
-    }
-  );
+  return request<{ message: string; skill_level: SkillLevel }>('/user/skill-level', {
+    method: 'PUT',
+    body: JSON.stringify({ skill_level }),
+  });
 }
 
 export async function registerFCMToken(fcm_token: string) {
@@ -216,10 +209,7 @@ export type SkillLevel   = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 export type TradeOutcome = 'WIN' | 'LOSS' | 'PENDING' | 'BREAKEVEN';
 
 export interface User {
-  id:          string;
-  email:       string;
-  name:        string;
-  skill_level: SkillLevel;
+  id: string; email: string; name: string; skill_level: SkillLevel;
 }
 
 export interface SMCSignal {

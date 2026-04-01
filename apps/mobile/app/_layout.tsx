@@ -1,83 +1,17 @@
-// // FILE: apps/mobile/app/_layout.tsx
-
-// import { useEffect } from "react";
-// import { Stack } from "expo-router";
-// import { StatusBar } from "expo-status-bar";
-// import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-// import { supabase } from "../services/supabase";
-// import { useAuthStore } from "../store/useAuthStore";
-// import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-
-// const queryClient = new QueryClient({
-//   defaultOptions: {
-//     queries: {
-//       retry: 2,
-//       staleTime: 30_000,
-//     },
-//   },
-// });
-
-// export default function RootLayout() {
-//   useEffect(() => {
-//     supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
-//       if (data.session) {
-//         useAuthStore.setState({
-//           token:  data.session.access_token,
-//           userId: data.session.user.id,
-//           user:   {},
-//         });
-//       }
-//     });
-
-//     const { data: listener } = supabase.auth.onAuthStateChange(
-//       (_event: AuthChangeEvent, session: Session | null) => {
-//         if (session) {
-//           useAuthStore.setState({
-//             token:  session.access_token,
-//             userId: session.user.id,
-//             user:   {},
-//           });
-//         } else {
-//           useAuthStore.setState({ token: null, userId: null, user: null });
-//         }
-//       }
-//     );
-
-//     return () => listener.subscription.unsubscribe();
-//   }, []);
-
-//   return (
-//     <QueryClientProvider client={queryClient}>
-//       <StatusBar style="light" />
-//       <Stack screenOptions={{ headerShown: false }}>
-//         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-//         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-//       </Stack>
-//     </QueryClientProvider>
-//   );
-// }
-
-
-
-
-
-
-
-
-
-
-
 // FILE: apps/mobile/app/_layout.tsx
-import { useEffect } from "react";
+
+import { useEffect, useState } from "react";
+import { View, ActivityIndicator } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { supabase } from "../services/supabase";
+import { supabase, sessionReady } from "../services/supabase";
 import { useAuthStore } from "../store/useAuthStore";
-import { setupNotifications } from "../services/notifications"; // ← ADD
-import { wsService } from "../services/ws";                     // ← ADD
-import { useSignalStore } from "../store/useSignalStore";       // ← ADD
-import * as Notifications from "expo-notifications";           // ← ADD
+import { useWatchlistStore } from "../store/useWatchlistStore";
+import { setupNotifications } from "../services/notifications";
+import { wsService } from "../services/ws";
+import { useSignalStore } from "../store/useSignalStore";
+import * as Notifications from "expo-notifications";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 const queryClient = new QueryClient({
@@ -85,52 +19,63 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const addSignal = useSignalStore((s) => s.addSignal);
+  const [appReady, setAppReady] = useState(false);
 
-  // ── Supabase auth sync (unchanged) ───────────────────────
+  const addSignal       = useSignalStore((s) => s.addSignal);
+  const hydrate         = useAuthStore((s) => s.hydrate);
+  const hydrateWatchlist = useWatchlistStore((s) => s.hydrate);
+
+  // ── Boot sequence — nothing renders until this resolves ─────────────────
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
-      if (data.session) {
-        useAuthStore.setState({
-          token:  data.session.access_token,
-          userId: data.session.user.id,
-          user:   {},
-        });
-      }
-    });
+    async function boot() {
+      try {
+        // 1. Wait for Supabase to read the persisted session from SecureStore
+        await sessionReady;
 
+        // 2. Hydrate auth store (refreshes token if expired)
+        await hydrate();
+
+        // 3. Hydrate other stores (non-blocking for auth, but await for consistency)
+        await hydrateWatchlist();
+      } catch (err) {
+        console.error("[Boot] Error during hydration:", err);
+      } finally {
+        // Always unblock rendering — even if something failed
+        setAppReady(true);
+      }
+    }
+
+    boot();
+  }, []);
+
+  // ── Supabase auth state listener ─────────────────────────────────────────
+  // Keeps the store in sync whenever Supabase fires TOKEN_REFRESHED,
+  // SIGNED_IN, SIGNED_OUT etc. — runs independently of boot sequence.
+  useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event: AuthChangeEvent, session: Session | null) => {
         if (session) {
-          useAuthStore.setState({
-            token:  session.access_token,
-            userId: session.user.id,
-            user:   {},
-          });
+          useAuthStore.getState().login(session.access_token, session.user.id);
         } else {
           useAuthStore.setState({ token: null, userId: null, user: null });
         }
       }
     );
-
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // ── Push notifications setup ─────────────────────────────
+  // ── Push notifications ───────────────────────────────────────────────────
   useEffect(() => {
-    const cleanup = setupNotifications(); // registers token + attaches listeners
+    const cleanup = setupNotifications();
     return cleanup;
   }, []);
 
-  // ── WebSocket connection + foreground notifications ───────
+  // ── WebSocket ────────────────────────────────────────────────────────────
   useEffect(() => {
     wsService.connect();
 
     const unsubSignal = wsService.onSignal(async (signal) => {
-      // 1. Push to store (updates the list in real-time)
       addSignal(signal);
-
-      // 2. Fire a local notification so the user sees it even when in-app
       await Notifications.scheduleNotificationAsync({
         content: {
           title: `${signal.type === "BUY" ? "🟢 LONG" : "🔴 SHORT"} ${signal.pair.replace("USDT", "")}/USDT`,
@@ -142,7 +87,7 @@ export default function RootLayout() {
             pair:     signal.pair,
           },
         },
-        trigger: null, // fire immediately
+        trigger: null,
       });
     });
 
@@ -151,6 +96,15 @@ export default function RootLayout() {
       wsService.disconnect();
     };
   }, [addSignal]);
+
+  // ── Block render until session is loaded ─────────────────────────────────
+  if (!appReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#0a0a0a", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#f0b429" />
+      </View>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

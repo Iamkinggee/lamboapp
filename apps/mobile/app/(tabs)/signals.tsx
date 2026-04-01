@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
   RefreshControl, ActivityIndicator, ScrollView,
 } from "react-native";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSignalStore } from "../../store/useSignalStore";
@@ -22,45 +22,33 @@ const FILTER_LABELS: Record<Filter, string> = {
 };
 
 export default function SignalsScreen() {
-  // const [activeFilter, setActiveFilter] = useState<Filter>("all");
+  // ✅ FIX: Only use isConnected from useWebSocket — DO NOT call connect/disconnect here.
+  // The root _layout.tsx manages the WebSocket lifecycle globally.
+  // Disconnecting here would kill signals on every tab switch.
+  const { isConnected } = useWebSocket();
 
-  const { connect, disconnect, isConnected } = useWebSocket();
-
-  // ✅ Connect WebSocket when screen mounts, disconnect on unmount
-  useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
-
-  const setSignals = useSignalStore((s) => s.setSignals);
+  const setSignals  = useSignalStore((s) => s.setSignals);
   const markAllRead = useSignalStore((s) => s.markAllRead);
 
   const { refetch, isLoading } = useQuery({
     queryKey: ["signals"],
     queryFn:  async () => {
       const res = await fetchSignals({ limit: 50 });
-      // ✅ Seed the store with historical signals on load
+      // Seed the store with historical signals on load
       if (res.signals?.length) setSignals(res.signals);
       return res;
     },
     refetchOnWindowFocus: false,
   });
 
-  // const signals = useSignalStore((s) => s.signals);
-
   // Reset unread badge once when this screen mounts
   useEffect(() => {
     markAllRead();
   }, []);
 
-
-  const activeFilter  = useSignalStore((s) => s.activeFilter);
-const setFilter     = useSignalStore((s) => s.setFilter);
-const filtered      = useSignalStore((s) => s.filtered());
-
-
-
-
+  const activeFilter = useSignalStore((s) => s.activeFilter);
+  const setFilter    = useSignalStore((s) => s.setFilter);
+  const filtered     = useSignalStore((s) => s.filtered());
 
   const renderSignal = ({ item }: { item: SMCSignal }) => (
     <SignalCard
@@ -94,7 +82,6 @@ const filtered      = useSignalStore((s) => s.filtered());
           <TouchableOpacity
             key={f}
             style={[styles.chip, activeFilter === f && styles.chipActive]}
-            // onPress={() => setActiveFilter(f)}
             onPress={() => setFilter(f)}
             activeOpacity={0.8}
           >
@@ -106,7 +93,7 @@ const filtered      = useSignalStore((s) => s.filtered());
       </ScrollView>
 
       {/* Signal list */}
-     {isLoading && filtered.length === 0 ? (
+      {isLoading && filtered.length === 0 ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator color={Colors.accent} size="large" />
           <Text style={styles.loadingText}>Loading signals...</Text>
