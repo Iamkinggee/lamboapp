@@ -1,3 +1,5 @@
+// FILE: services/api-server/src/routes/ai.ts
+
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/auth';
 import { getChatHistory, saveChatMessage, getSignalById } from '../db/supabase';
@@ -14,12 +16,12 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           required: ['message'],
-          properties: { message: { type: 'string', maxLength: 500 } },
+          properties: { message: { type: 'string', maxLength: 4000 } },
         },
       },
     },
     async (request, reply) => {
-      const userId = request.user.sub;
+      const userId = (request.user as { sub: string }).sub;
       const { message } = request.body;
 
       await saveChatMessage(userId, { role: 'user', content: message });
@@ -27,10 +29,10 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
       let aiResponse: string;
       try {
         const res = await fetch(`${AI_SERVICE_URL}/chat`, {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, message }),
-          signal: AbortSignal.timeout(30_000),
+          body:    JSON.stringify({ user_id: userId, message }),
+          signal:  AbortSignal.timeout(30_000),
         });
         if (!res.ok) throw new Error(`AI service error: ${res.status}`);
         const data = (await res.json()) as { response: string };
@@ -49,18 +51,19 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
     '/ai/explain/:id',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const userId = request.user.sub;
+      const userId = (request.user as { sub: string }).sub;
       const signal = await getSignalById(request.params.id);
 
       if (!signal) return reply.code(404).send({ error: 'Signal not found' });
-      if (signal.ai_explanation) return reply.send({ explanation: signal.ai_explanation });
+      // Always call AI service for a fresh, real analysis.
+      // The cached ai_explanation field may contain hardcoded placeholder text.
 
       try {
         const res = await fetch(`${AI_SERVICE_URL}/explain`, {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, signal }),
-          signal: AbortSignal.timeout(20_000),
+          body:    JSON.stringify({ user_id: userId, signal }),
+          signal:  AbortSignal.timeout(20_000),
         });
         if (!res.ok) throw new Error(`AI service error: ${res.status}`);
         const data = (await res.json()) as { explanation: string };
@@ -76,8 +79,8 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
     '/ai/history',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const userId = request.user.sub;
-      const limit = parseInt(request.query.limit ?? '20', 10);
+      const userId = (request.user as { sub: string }).sub;
+      const limit  = parseInt(request.query.limit ?? '20', 10);
       const history = await getChatHistory(userId, limit);
       return reply.send({ history });
     }

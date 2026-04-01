@@ -6,12 +6,11 @@ import {
 import { useEffect } from "react";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { useSignalStore } from "../../store/useSignalStore";
+import { useSignalStore, type SignalWithStatus } from "../../store/useSignalStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import SignalCard from "../../components/SignalCard";
 import { Colors } from "../../utils/theme";
 import { fetchSignals } from "../../services/api";
-import type { SMCSignal } from "../../services/api";
 
 type Filter = "all" | "BUY" | "SELL" | "high";
 const FILTER_LABELS: Record<Filter, string> = {
@@ -22,9 +21,6 @@ const FILTER_LABELS: Record<Filter, string> = {
 };
 
 export default function SignalsScreen() {
-  // ✅ FIX: Only use isConnected from useWebSocket — DO NOT call connect/disconnect here.
-  // The root _layout.tsx manages the WebSocket lifecycle globally.
-  // Disconnecting here would kill signals on every tab switch.
   const { isConnected } = useWebSocket();
 
   const setSignals  = useSignalStore((s) => s.setSignals);
@@ -34,14 +30,13 @@ export default function SignalsScreen() {
     queryKey: ["signals"],
     queryFn:  async () => {
       const res = await fetchSignals({ limit: 50 });
-      // Seed the store with historical signals on load
       if (res.signals?.length) setSignals(res.signals);
       return res;
     },
     refetchOnWindowFocus: false,
   });
 
-  // Reset unread badge once when this screen mounts
+  // Reset unread badge when this screen mounts
   useEffect(() => {
     markAllRead();
   }, []);
@@ -50,10 +45,10 @@ export default function SignalsScreen() {
   const setFilter    = useSignalStore((s) => s.setFilter);
   const filtered     = useSignalStore((s) => s.filtered());
 
-  const renderSignal = ({ item }: { item: SMCSignal }) => (
+  const renderSignal = ({ item }: { item: SignalWithStatus }) => (
     <SignalCard
-      signal={item}
-      onPress={() => router.push(`/signal/${item.signal_id}`)}
+      signal={item.signal}
+      onPress={() => router.push(`/signal/${item.signal.signal_id}`)}
     />
   );
 
@@ -68,7 +63,7 @@ export default function SignalsScreen() {
             <Text style={styles.wsLabel}>{isConnected ? "LIVE" : "RECONNECTING..."}</Text>
           </View>
         </View>
-        <Text style={styles.count}>{filtered.length} signals</Text>
+        <Text style={styles.count}>{filtered.length} active</Text>
       </View>
 
       {/* Filter chips */}
@@ -92,7 +87,7 @@ export default function SignalsScreen() {
         ))}
       </ScrollView>
 
-      {/* Signal list */}
+      {/* Signal list — only ACTIVE signals appear here */}
       {isLoading && filtered.length === 0 ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator color={Colors.accent} size="large" />
@@ -101,7 +96,7 @@ export default function SignalsScreen() {
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={(item) => item.signal_id}
+          keyExtractor={(item) => item.signal.signal_id}
           renderItem={renderSignal}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -115,9 +110,9 @@ export default function SignalsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyIcon}>⚡</Text>
-              <Text style={styles.emptyText}>No signals yet</Text>
+              <Text style={styles.emptyText}>No active signals</Text>
               <Text style={styles.emptySubText}>
-                Waiting for high-probability SMC setups...
+                All current setups have resolved. Waiting for fresh high-probability SMC setups...
               </Text>
             </View>
           }
@@ -158,7 +153,7 @@ const styles = StyleSheet.create({
   loadingWrap:  { flex: 1, alignItems: "center", justifyContent: "center", marginTop: 80 },
   loadingText:  { color: Colors.muted, marginTop: 12, fontSize: 14 },
 
-  emptyWrap:    { alignItems: "center", paddingTop: 80 },
+  emptyWrap:    { alignItems: "center", paddingTop: 80, paddingHorizontal: 32 },
   emptyIcon:    { fontSize: 48, marginBottom: 16 },
   emptyText:    { fontSize: 18, fontWeight: "700", color: Colors.text, marginBottom: 8 },
   emptySubText: { fontSize: 14, color: Colors.muted, textAlign: "center", lineHeight: 22 },

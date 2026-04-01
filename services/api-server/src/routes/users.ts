@@ -1,3 +1,5 @@
+// FILE: services/api-server/src/routes/users.ts
+
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/auth';
 import { getUserPreferences, upsertUserPreferences, saveFCMToken } from '../db/supabase';
@@ -16,8 +18,8 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get('/user/preferences', {
     preHandler: [authenticate],
   }, async (request, reply) => {
-    const userId = request.user.sub;
-    const prefs = await getUserPreferences(userId);
+    const userId = (request.user as { sub: string }).sub;
+    const prefs  = await getUserPreferences(userId);
 
     if (!prefs) {
       return reply.code(404).send({ error: 'Preferences not found' });
@@ -30,12 +32,12 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.put<{
     Body: {
       min_confidence_threshold?: number;
-      watched_pairs?: string[];
-      default_rr_target?: number;
-      sl_buffer_multiplier?: number;
-      notify_high_confidence?: boolean;
-      notify_all_signals?: boolean;
-      notify_bias_change?: boolean;
+      watched_pairs?:            string[];
+      default_rr_target?:        number;
+      sl_buffer_multiplier?:     number;
+      notify_high_confidence?:   boolean;
+      notify_all_signals?:       boolean;
+      notify_bias_change?:       boolean;
     };
   }>('/user/preferences', {
     preHandler: [authenticate],
@@ -44,17 +46,17 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         type: 'object',
         properties: {
           min_confidence_threshold: { type: 'number', minimum: 0, maximum: 100 },
-          watched_pairs: { type: 'array', items: { type: 'string' } },
-          default_rr_target: { type: 'number', minimum: 1 },
-          sl_buffer_multiplier: { type: 'number', minimum: 0.5, maximum: 3 },
-          notify_high_confidence: { type: 'boolean' },
-          notify_all_signals: { type: 'boolean' },
-          notify_bias_change: { type: 'boolean' },
+          watched_pairs:            { type: 'array', items: { type: 'string' } },
+          default_rr_target:        { type: 'number', minimum: 1 },
+          sl_buffer_multiplier:     { type: 'number', minimum: 0.5, maximum: 3 },
+          notify_high_confidence:   { type: 'boolean' },
+          notify_all_signals:       { type: 'boolean' },
+          notify_bias_change:       { type: 'boolean' },
         },
       },
     },
   }, async (request, reply) => {
-    const userId = request.user.sub;
+    const userId = (request.user as { sub: string }).sub;
 
     await upsertUserPreferences({
       user_id: userId,
@@ -79,7 +81,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
   }, async (request, reply) => {
-    const userId = request.user.sub;
+    const userId      = (request.user as { sub: string }).sub;
     const { skill_level } = request.body;
 
     await upsertUserPreferences({ user_id: userId, skill_level });
@@ -102,7 +104,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
   }, async (request, reply) => {
-    const userId = request.user.sub;
+    const userId = (request.user as { sub: string }).sub;
     await saveFCMToken(userId, request.body.fcm_token);
     return reply.send({ message: 'FCM token registered' });
   });

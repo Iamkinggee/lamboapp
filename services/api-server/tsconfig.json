@@ -1,4 +1,5 @@
 {
+  "_comment": "FILE: services/api-server/tsconfig.json",
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
@@ -14,12 +15,11 @@
     "sourceMap": true,
     "downlevelIteration": true,
     "baseUrl": "./src",
+    "typeRoots": ["./src/types", "./node_modules/@types"],
     "paths": {
       "../models/*": ["models/*"]
     }
   },
-
-  "exclude": ["node_modules", "dist"],
-  "include": ["src/**/*", "src/types/**/*.d.ts"],  // ← add this
-
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

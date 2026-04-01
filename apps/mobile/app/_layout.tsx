@@ -11,6 +11,7 @@ import { useWatchlistStore } from "../store/useWatchlistStore";
 import { setupNotifications } from "../services/notifications";
 import { wsService } from "../services/ws";
 import { useSignalStore } from "../store/useSignalStore";
+import { usePriceMonitor } from "../hooks/usePriceMonitor";
 import * as Notifications from "expo-notifications";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
@@ -18,39 +19,37 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 2, staleTime: 30_000 } },
 });
 
+// Inner component so hooks (usePriceMonitor) run inside QueryClientProvider
+function AppCore() {
+  // ── Start price monitor (checks SL/TP every 30s) ──────────────────
+  usePriceMonitor();
+  return null;
+}
+
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
 
-  const addSignal       = useSignalStore((s) => s.addSignal);
-  const hydrate         = useAuthStore((s) => s.hydrate);
+  const addSignal        = useSignalStore((s) => s.addSignal);
+  const hydrate          = useAuthStore((s) => s.hydrate);
   const hydrateWatchlist = useWatchlistStore((s) => s.hydrate);
 
-  // ── Boot sequence — nothing renders until this resolves ─────────────────
+  // ── Boot sequence ────────────────────────────────────────────────────
   useEffect(() => {
     async function boot() {
       try {
-        // 1. Wait for Supabase to read the persisted session from SecureStore
         await sessionReady;
-
-        // 2. Hydrate auth store (refreshes token if expired)
         await hydrate();
-
-        // 3. Hydrate other stores (non-blocking for auth, but await for consistency)
         await hydrateWatchlist();
       } catch (err) {
         console.error("[Boot] Error during hydration:", err);
       } finally {
-        // Always unblock rendering — even if something failed
         setAppReady(true);
       }
     }
-
     boot();
   }, []);
 
-  // ── Supabase auth state listener ─────────────────────────────────────────
-  // Keeps the store in sync whenever Supabase fires TOKEN_REFRESHED,
-  // SIGNED_IN, SIGNED_OUT etc. — runs independently of boot sequence.
+  // ── Supabase auth state listener ─────────────────────────────────────
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event: AuthChangeEvent, session: Session | null) => {
@@ -64,31 +63,38 @@ export default function RootLayout() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // ── Push notifications ───────────────────────────────────────────────────
+  // ── Push notifications ───────────────────────────────────────────────
   useEffect(() => {
     const cleanup = setupNotifications();
     return cleanup;
   }, []);
 
-  // ── WebSocket ────────────────────────────────────────────────────────────
+  // ── WebSocket — real-time signal delivery ────────────────────────────
   useEffect(() => {
     wsService.connect();
 
     const unsubSignal = wsService.onSignal(async (signal) => {
+      // Add to the signal store (shows immediately on Signals page)
       addSignal(signal);
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: `${signal.type === "BUY" ? "🟢 LONG" : "🔴 SHORT"} ${signal.pair.replace("USDT", "")}/USDT`,
-          body:  `Entry ${signal.entry} · RR 1:${signal.risk_reward} · ${signal.confidence_score}% confidence`,
-          sound: "default",
-          data: {
-            screen:   "signal-detail",
-            signalId: signal.signal_id,
-            pair:     signal.pair,
+
+      // Fire a local push notification for every new signal
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `⚡ New Signal — ${signal.pair.replace("USDT", "")}/USDT`,
+            body: `${signal.type === "BUY" ? "🟢 LONG" : "🔴 SHORT"} · Entry ${signal.entry} · RR 1:${signal.risk_reward} · ${signal.confidence_score}% confidence`,
+            sound: "default",
+            data: {
+              screen:   "signal-detail",
+              signalId: signal.signal_id,
+              pair:     signal.pair,
+            },
           },
-        },
-        trigger: null,
-      });
+          trigger: null,
+        });
+      } catch (err) {
+        console.warn("[WS] Notification scheduling failed:", err);
+      }
     });
 
     return () => {
@@ -97,7 +103,6 @@ export default function RootLayout() {
     };
   }, [addSignal]);
 
-  // ── Block render until session is loaded ─────────────────────────────────
   if (!appReady) {
     return (
       <View style={{ flex: 1, backgroundColor: "#0a0a0a", justifyContent: "center", alignItems: "center" }}>
@@ -109,6 +114,8 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="light" />
+      {/* AppCore runs price monitor inside the provider */}
+      <AppCore />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />

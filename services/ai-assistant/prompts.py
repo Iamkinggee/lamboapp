@@ -1,161 +1,7 @@
-# # ──────────────────────────────────────────────
-# # services/ai-assistant/prompts.py
-# # All prompt templates for the AI mentor
-# # ──────────────────────────────────────────────
-# from models import UserContext, SMCSignal, TradeRecord
-
-
-# # ── Layer 1: System Persona ───────────────────
-# SYSTEM_PERSONA = """You are an expert Smart Money Concepts (SMC) trading mentor with 15+ years of institutional trading experience.
-
-# STRICT RULES — never break these:
-# - Only use SMC and pure price action concepts
-# - NEVER mention RSI, MACD, Bollinger Bands, moving averages, or any lagging indicator
-# - NEVER give financial advice or guarantee outcomes
-# - Always remind users that trading involves risk
-# - Keep responses concise and practical — no fluff
-
-# SMC CONCEPTS YOU USE:
-# Order Blocks (OB), Fair Value Gaps (FVG), Liquidity Pools, Break of Structure (BOS),
-# Change of Character (CHOCH), Premium/Discount zones, Inducement, Mitigation,
-# Market Structure, Displacement, Imbalance, Smart Money Traps"""
-
-
-# def build_system_prompt(ctx: UserContext, recent_signals: list[SMCSignal]) -> str:
-#     """Build the full layered system prompt for a chat session."""
-
-#     # Layer 2: User context
-#     skill_instructions = {
-#         "BEGINNER": "Use simple, plain language. Define every SMC term you use. Use analogies. Avoid jargon.",
-#         "INTERMEDIATE": "Assume basic SMC knowledge. Focus on execution timing and entry model nuances.",
-#         "ADVANCED": "Use full institutional terminology. Discuss order flow, multi-session analysis, and playbook building.",
-#     }
-
-#     trade_summary = _format_trades(ctx.recent_trades)
-#     signals_summary = _format_signals(recent_signals)
-
-#     return f"""{SYSTEM_PERSONA}
-
-# USER PROFILE:
-# - Skill level: {ctx.skill_level}
-# - Instruction style: {skill_instructions.get(ctx.skill_level, skill_instructions['BEGINNER'])}
-
-# RECENT TRADE HISTORY (last {len(ctx.recent_trades)} trades):
-# {trade_summary}
-
-# CURRENT MARKET CONTEXT (latest signals):
-# {signals_summary}"""
-
-
-# def build_explanation_prompt(signal: SMCSignal, skill_level: str) -> str:
-#     """Prompt to generate an AI explanation for a specific signal."""
-
-#     style = {
-#         "BEGINNER": "Use simple language and define every term. Explain like you're teaching a new trader.",
-#         "INTERMEDIATE": "Focus on the entry logic, timing, and what to watch for.",
-#         "ADVANCED": "Discuss institutional order flow, why smart money would be at this level, and the full playbook.",
-#     }.get(skill_level, "Use simple language.")
-
-#     return f"""Generate a clear, practical explanation for this SMC trading signal.
-
-# SIGNAL DATA:
-# - Pair: {signal.pair}
-# - Direction: {signal.type}
-# - Entry: {signal.entry}
-# - Stop Loss: {signal.stop_loss}
-# - Take Profit: {signal.take_profit}
-# - Risk/Reward: {signal.risk_reward}
-# - Confidence: {signal.confidence_score}%
-# - Confluences: {', '.join(signal.confluences)}
-# - HTF Bias: {signal.htf_bias}
-# - Entry Model: {signal.entry_model}
-# - Timeframe: {signal.timeframe} (HTF: {signal.htf_timeframe})
-
-# STYLE: {style}
-
-# Write 3-4 sentences explaining:
-# 1. WHY this setup is valid (what SMC conditions aligned)
-# 2. WHERE the entry is and why that level matters
-# 3. WHEN this setup is invalidated (what would make you exit or avoid it)
-
-# Be direct and practical. No fluff."""
-
-
-# def build_trade_review_prompt(trade: TradeRecord, skill_level: str) -> str:
-#     """Prompt to review a completed trade."""
-
-#     outcome_context = {
-#         "WIN":       "This was a winning trade. Reinforce what was done correctly.",
-#         "LOSS":      "This was a losing trade. Identify the mistake category and give a specific fix.",
-#         "BREAKEVEN": "This trade broke even. Analyze whether the setup was valid and what could improve next time.",
-#         "PENDING":   "This trade is still open. Evaluate whether the setup remains valid.",
-#     }.get(trade.outcome, "")
-
-#     return f"""Review this SMC trade and provide mentorship feedback.
-
-# TRADE DETAILS:
-# - Pair: {trade.pair}
-# - Direction: {trade.trade_type}
-# - Entry: {trade.entry}
-# - Stop Loss: {trade.stop_loss}
-# - Take Profit: {trade.take_profit}
-# - Risk/Reward: {trade.risk_reward}
-# - Outcome: {trade.outcome}
-# - Notes: {trade.notes or 'None provided'}
-
-# OUTCOME CONTEXT: {outcome_context}
-
-# Provide feedback in this structure:
-# 1. SETUP VALIDITY: Was this a valid SMC setup? Why or why not?
-# 2. ENTRY QUALITY: Was entry timing and placement correct?
-# 3. RISK MANAGEMENT: Was the SL logically placed? Was the TP realistic?
-# 4. MISTAKE CATEGORY (if loss): premature entry / counter-trend / SL too tight / chasing / other
-# 5. IMPROVEMENT: One specific thing to do differently next time
-
-# User skill level: {skill_level} — adjust language accordingly."""
-
-
-# # ── Formatters ────────────────────────────────
-
-# def _format_trades(trades: list[TradeRecord]) -> str:
-#     if not trades:
-#         return "No recent trades on record."
-#     lines = []
-#     for t in trades:
-#         lines.append(
-#             f"  • {t.pair} {t.trade_type} | Entry: {t.entry} | RR: {t.risk_reward} | Outcome: {t.outcome}"
-#         )
-#     return "\n".join(lines)
-
-
-# def _format_signals(signals: list[SMCSignal]) -> str:
-#     if not signals:
-#         return "No recent signals available."
-#     lines = []
-#     for s in signals:
-#         lines.append(
-#             f"  • {s.pair} {s.type} | Score: {s.confidence_score}% | "
-#             f"Confluences: {', '.join(s.confluences)} | HTF: {s.htf_bias}"
-#         )
-#     return "\n".join(lines)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # FILE: services/ai-assistant/prompts.py
 # ─────────────────────────────────────────────────────────────
-# Layered prompt architecture — builds system + user prompts
-# for chat, signal explanation, and trade review endpoints
+# Layered prompt architecture for the SMC AI mentor
+# All prompts are dynamic — no hardcoded test/placeholder text
 # ─────────────────────────────────────────────────────────────
 
 from models import SMCSignal, TradeRecord, UserContext
@@ -168,11 +14,13 @@ def _format_signals(signals: list[dict]) -> str:
         return "No recent signals available."
     lines = []
     for s in signals:
+        htf   = s.get("htf_bias", "NEUTRAL")
+        confs = ", ".join(s.get("confluences", []))
         lines.append(
             f"- {s.get('pair')} {s.get('type')} | "
-            f"Confidence: {s.get('confidence_score')}% | "
-            f"Confluences: {', '.join(s.get('confluences', []))} | "
-            f"HTF Bias: {s.get('htf_bias')}"
+            f"Entry: {s.get('entry')} | SL: {s.get('stop_loss')} | TP: {s.get('take_profit')} | "
+            f"Confidence: {s.get('confidence_score')}% | HTF Bias: {htf} | "
+            f"Confluences: {confs or 'None'}"
         )
     return "\n".join(lines)
 
@@ -185,7 +33,7 @@ def _format_trades(trades: list[TradeRecord]) -> str:
         lines.append(
             f"- {t.pair} {t.trade_type} | Entry: {t.entry} | "
             f"SL: {t.stop_loss} | TP: {t.take_profit} | "
-            f"RR: {t.risk_reward} | Outcome: {t.outcome}"
+            f"RR: 1:{t.risk_reward} | Outcome: {t.outcome}"
         )
     return "\n".join(lines)
 
@@ -193,119 +41,153 @@ def _format_trades(trades: list[TradeRecord]) -> str:
 def _skill_instruction(skill_level: str) -> str:
     instructions = {
         "BEGINNER": (
-            "The user is a beginner. Use simple language. "
-            "Define all SMC terms when first used. Use analogies. "
-            "Avoid institutional jargon. Keep explanations short and friendly."
+            "The user is a beginner trader. Use clear, simple language. "
+            "Define every SMC term when first used (e.g. explain what an Order Block is). "
+            "Use analogies. Avoid heavy jargon. Keep explanations friendly and encouraging."
         ),
         "INTERMEDIATE": (
-            "The user has basic SMC knowledge. Focus on execution timing, "
-            "entry model nuances, and confluence combinations. "
-            "No need to define basic terms."
+            "The user has solid SMC fundamentals. Focus on execution timing, "
+            "confluence stacking, entry model precision (anticipation vs confirmation), "
+            "and risk management nuances. No need to define basic terms."
         ),
         "ADVANCED": (
-            "The user is experienced. Use full institutional SMC terminology. "
-            "Discuss order flow, session analysis, multi-timeframe confluence, "
-            "and playbook building. Be precise and concise."
+            "The user is an experienced trader. Use full institutional SMC terminology. "
+            "Discuss order flow, session-based liquidity, multi-timeframe confluence, "
+            "displacement, and trade playbook construction. Be precise and analytical."
         ),
     }
     return instructions.get(skill_level, instructions["BEGINNER"])
 
 
-# ── Prompt builders called by main.py ─────────────────────────
+# ── Chat system prompt ────────────────────────────────────────
 
 def build_system_prompt(ctx: UserContext, recent_signals: list[dict]) -> str:
     """
     Builds the full 4-layer system prompt for the /chat endpoint.
-    Layer 1: Persona  |  Layer 2: User context  |  Layer 3: Market context
+    Layer 1: Persona  |  Layer 2: User profile  |  Layer 3: Trade history  |  Layer 4: Market context
     """
     win_rate_str = f"{int(ctx.win_rate * 100)}%" if ctx.win_rate is not None else "unknown"
 
-    return f"""You are an expert Smart Money Concepts (SMC) trading mentor.
+    return f"""You are an expert Smart Money Concepts (SMC) trading mentor with deep institutional trading knowledge.
 
 STRICT RULES:
-- Only use SMC and pure price action concepts.
-- Never mention RSI, MACD, Bollinger Bands, or any lagging indicator.
-- Never give financial advice or guarantee outcomes.
-- Always explain your reasoning using market structure logic.
+- Only reference SMC and pure price action concepts. Never mention RSI, MACD, Bollinger Bands, moving averages, or any lagging indicator.
+- Never give financial advice or guarantee trade outcomes. Always note that trading carries risk.
+- Be specific and use the actual numbers from signals/trades in your responses — do not be generic.
+- If the user references a signal or trade in their watchlist context, address it directly.
+- Do not repeat context back to the user verbatim. Use it silently to inform your answer.
 
-SKILL LEVEL INSTRUCTION:
+SKILL LEVEL ADAPTATION:
 {_skill_instruction(ctx.skill_level)}
 
 USER PROFILE:
 - Skill level: {ctx.skill_level}
-- Recent win rate: {win_rate_str}
-- Recent trades:
+- Recent win rate: {win_rate_str} (last {len(ctx.recent_trades)} trades)
+
+RECENT TRADE HISTORY:
 {_format_trades(ctx.recent_trades)}
 
-CURRENT MARKET CONTEXT (last 3 signals from the engine):
+LIVE MARKET SIGNALS (from the signal engine right now):
 {_format_signals(recent_signals)}
 
-Respond helpfully, specifically, and concisely. If the user asks about a concept,
-explain it clearly. If they ask about a trade, give structured feedback.
-Do not pad responses with unnecessary filler text."""
+Respond helpfully and specifically. Reference actual prices and levels when available.
+If the user asks about a specific coin or signal from their context, provide concrete analysis.
+Do not pad responses. Keep answers focused and actionable."""
 
+
+# ── Signal explanation prompt ─────────────────────────────────
 
 def build_explanation_prompt(signal: SMCSignal, skill_level: str) -> str:
     """
-    Prompt to generate a plain-language explanation for a single signal.
-    Used by the /explain endpoint, called at signal publish time.
+    Generates a detailed, real AI analysis for a specific signal.
+    Uses actual price levels — no hardcoded or placeholder text.
     """
     skill_note = _skill_instruction(skill_level)
 
-    return f"""Explain this SMC trading signal in plain language.
+    # Derive contextual details for the prompt
+    rr_ratio        = signal.risk_reward
+    direction_label = "bullish" if signal.type == "BUY" else "bearish"
+    entry_model_label = (
+        "waiting for price to return to the zone before entering"
+        if signal.entry_model == "CONFIRMATION"
+        else "entering ahead of confirmation as price approaches the zone"
+    )
+    sl_distance     = abs(signal.entry - signal.stop_loss)
+    tp_distance     = abs(signal.take_profit - signal.entry)
+    confluence_list = ", ".join(signal.confluences) if signal.confluences else "price action structure"
 
-SIGNAL DETAILS:
-- Pair: {signal.pair}
-- Direction: {signal.type}
-- Entry: {signal.entry}
-- Stop Loss: {signal.stop_loss}
-- Take Profit: {signal.take_profit}
-- Risk/Reward: {signal.risk_reward}
-- Confidence Score: {signal.confidence_score}%
-- Confluences: {', '.join(signal.confluences)}
-- HTF Bias: {signal.htf_bias}
-- Entry Model: {signal.entry_model}
-- Timeframe: {signal.timeframe} (HTF: {signal.htf_timeframe})
+    return f"""You are an SMC trading mentor. Analyse this signal and write a clear, specific explanation for a trader.
+
+SIGNAL DATA:
+- Pair:            {signal.pair}
+- Direction:       {signal.type} ({direction_label})
+- Entry:           {signal.entry}
+- Stop Loss:       {signal.stop_loss}  (distance: {sl_distance:.4f})
+- Take Profit:     {signal.take_profit} (distance: {tp_distance:.4f})
+- Risk/Reward:     1:{rr_ratio}
+- Confidence:      {signal.confidence_score}%
+- HTF Bias:        {signal.htf_bias} on the {signal.htf_timeframe}
+- Entry Timeframe: {signal.timeframe}
+- Entry Model:     {signal.entry_model} ({entry_model_label})
+- Confluences:     {confluence_list}
 
 SKILL LEVEL: {skill_level}
 {skill_note}
 
-Write 3-5 sentences that:
-1. Explain WHY this signal was generated (what SMC setup triggered it)
-2. Explain WHERE the SL and TP are placed and why
-3. State ONE condition that would invalidate this setup
+Write a structured analysis with these 4 parts. Be specific — use the actual price levels above:
 
-Be specific. Do not use generic filler. Use the actual price levels provided."""
+1. SETUP RATIONALE — Why does this signal make sense? What SMC structure triggered it? Reference the confluences and HTF bias.
 
+2. KEY LEVELS — Explain where the entry, SL, and TP are placed and WHY each level was chosen from an SMC perspective (e.g. SL is below the last swing low / order block, TP targets the next liquidity pool).
+
+3. RISK/REWARD — Comment on the 1:{rr_ratio} ratio. Is this a solid setup or marginal? What does the {signal.confidence_score}% confidence score reflect?
+
+4. INVALIDATION — What price action would invalidate this setup before entry? What would signal that smart money has moved elsewhere?
+
+Keep the total response under 200 words. No bullet points — write in short, clear paragraphs. Do not use generic filler phrases like "this is a great opportunity" — be analytical and direct."""
+
+
+# ── Trade review prompt ───────────────────────────────────────
 
 def build_trade_review_prompt(trade: TradeRecord, skill_level: str) -> str:
     """
-    Prompt to review a completed trade and provide mentorship feedback.
-    Used by the /review endpoint — routes to Claude for deeper analysis.
+    Reviews a completed trade and provides structured mentorship feedback.
+    Routes to Claude via use_anthropic=True in main.py for deeper analysis.
     """
     skill_note = _skill_instruction(skill_level)
-
     notes_section = f"\nUser notes: {trade.notes}" if trade.notes else ""
 
-    return f"""Review this completed trade from an SMC perspective and provide mentorship feedback.
+    outcome_framing = {
+        "WIN":       "This was a winning trade. Reinforce what was done correctly and identify what could be improved further.",
+        "LOSS":      "This was a losing trade. Identify the most likely error category and give one specific, actionable fix.",
+        "BREAKEVEN": "This trade broke even. Evaluate whether the setup was valid, and what could improve execution next time.",
+        "PENDING":   "This trade is still open. Evaluate whether the original setup rationale still holds at the current structure.",
+    }.get(trade.outcome, "")
+
+    return f"""Review this completed SMC trade and provide structured mentorship feedback.
 
 TRADE DETAILS:
-- Pair: {trade.pair}
-- Direction: {trade.trade_type}
-- Entry: {trade.entry}
-- Stop Loss: {trade.stop_loss}
-- Take Profit: {trade.take_profit}
-- Risk/Reward: {trade.risk_reward}
-- Outcome: {trade.outcome}{notes_section}
+- Pair:          {trade.pair}
+- Direction:     {trade.trade_type}
+- Entry:         {trade.entry}
+- Stop Loss:     {trade.stop_loss}
+- Take Profit:   {trade.take_profit}
+- Risk/Reward:   1:{trade.risk_reward}
+- Outcome:       {trade.outcome}{notes_section}
+
+OUTCOME CONTEXT: {outcome_framing}
 
 SKILL LEVEL: {skill_level}
 {skill_note}
 
-Structure your feedback as follows:
-1. ENTRY QUALITY — Was the entry placement valid from an SMC perspective?
-2. RISK MANAGEMENT — Was the SL/TP logical relative to structure?
-3. MISTAKE IDENTIFIED — If outcome was a loss, what was the likely error?
-   (Options: premature entry, counter-trend trade, SL too tight, overleveraged, ignored HTF bias)
-4. IMPROVEMENT — One specific actionable thing to do differently next time.
+Structure your feedback exactly as follows:
 
-Be direct and specific. Use actual price levels in your analysis."""
+1. ENTRY QUALITY — Was this entry valid from an SMC perspective? Was it at a premium/discount zone? Was the timing correct?
+
+2. RISK MANAGEMENT — Was the SL placed behind a valid structural level? Was the TP realistic (liquidity target, previous high/low, OB)?
+
+3. MISTAKE IDENTIFIED (if loss) — Choose one: premature entry | counter-trend trade | SL too tight | overleveraged | ignored HTF bias | chased price. Explain briefly.
+
+4. ONE IMPROVEMENT — One specific, actionable change to make on the next similar setup.
+
+Use the actual price levels ({trade.entry}, {trade.stop_loss}, {trade.take_profit}) in your feedback. Be direct — no filler."""

@@ -160,9 +160,11 @@ export async function fetchTrades(params?: { limit?: number; offset?: number }) 
 // ── AI ────────────────────────────────────────
 
 export async function sendChatMessage(message: string) {
+  // Truncate to 4000 chars to match server-side validation
+  const truncated = message.length > 4000 ? message.slice(0, 4000) : message;
   return request<{ response: string }>('/ai/chat', {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message: truncated }),
   });
 }
 

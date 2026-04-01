@@ -10,6 +10,7 @@ export default function useSignals() {
     queryKey: ['signals'],
     queryFn: async () => {
       const res = await fetchSignals({ limit: 50 });
+      // setSignals wraps each SMCSignal in { signal, status: 'ACTIVE' }
       if (res.signals?.length) setSignals(res.signals);
       return res;
     },
