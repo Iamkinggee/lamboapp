@@ -1,6 +1,6 @@
+// LOCATION: apps/mobile/services/api.ts
 // FILE: apps/mobile/services/api.ts
 
-import { Platform } from 'react-native';
 import { supabase, sessionReady } from './supabase';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -43,19 +43,15 @@ export async function getToken(): Promise<string | null> {
 
   const { data, error } = await supabase.auth.getSession();
 
-  console.log('[Token] getSession error:', error?.message ?? 'none');
-  console.log('[Token] session exists:', !!data.session);
-  console.log('[Token] expires_at:', data.session?.expires_at);
-  console.log('[Token] now:', Math.floor(Date.now() / 1000));
-
   if (error || !data.session) {
-    console.warn('[Token] No active session found');
+    console.warn('[Token] No active session');
     return null;
   }
 
   const { access_token, expires_at, user } = data.session;
   const now = Math.floor(Date.now() / 1000);
 
+  // Token is still fresh (more than 60s remaining)
   if (expires_at && expires_at - now > 60) {
     if (useAuthStore.getState().token !== access_token) {
       await useAuthStore.getState().login(access_token, user.id);
@@ -63,11 +59,9 @@ export async function getToken(): Promise<string | null> {
     return access_token;
   }
 
-  console.log('[Token] Expiring/expired — refreshing...');
+  // Token expiring/expired — refresh it
+  console.log('[Token] Refreshing expiring token...');
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-
-  console.log('[Token] Refresh error:', refreshError?.message ?? 'none');
-  console.log('[Token] Refreshed session exists:', !!refreshed.session);
 
   if (refreshError || !refreshed.session) {
     console.error('[Token] Refresh failed — clearing session');
@@ -89,11 +83,6 @@ export async function clearToken(): Promise<void> {}
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
 
-  console.log('[API] =============================');
-  console.log('[API] path:', path);
-  console.log('[API] token:', token ? token.substring(0, 20) + '...' : 'NULL');
-  console.log('[API] BASE_URL:', BASE_URL);
-
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -103,11 +92,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
-  console.log('[API] status:', res.status, path);
-
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    console.error('[API] error body:', body);
+    console.error(`[API] ${res.status} ${path}`, body);
     throw new APIError(res.status, (body as { error?: string }).error ?? 'Request failed');
   }
 
@@ -160,7 +147,6 @@ export async function fetchTrades(params?: { limit?: number; offset?: number }) 
 // ── AI ────────────────────────────────────────
 
 export async function sendChatMessage(message: string) {
-  // Truncate to 4000 chars to match server-side validation
   const truncated = message.length > 4000 ? message.slice(0, 4000) : message;
   return request<{ response: string }>('/ai/chat', {
     method: 'POST',

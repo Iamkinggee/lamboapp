@@ -1,6 +1,7 @@
 // FILE: apps/mobile/app/_layout.tsx
+// LOCATION: apps/mobile/app/_layout.tsx
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -12,34 +13,66 @@ import { setupNotifications } from "../services/notifications";
 import { wsService } from "../services/ws";
 import { useSignalStore } from "../store/useSignalStore";
 import { usePriceMonitor } from "../hooks/usePriceMonitor";
+import { useWebSocket } from "../hooks/useWebSocket";
 import * as Notifications from "expo-notifications";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import type { SMCSignal } from "../services/api";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 2, staleTime: 30_000 } },
 });
 
-// Inner component so hooks (usePriceMonitor) run inside QueryClientProvider
+// AppCore runs inside QueryClientProvider — all hooks live here
 function AppCore() {
-  // ── Start price monitor (checks SL/TP every 30s) ──────────────────
+  // PriceMonitor: checks SL/TP every 30s
   usePriceMonitor();
+
+  // useWebSocket: syncs WS status to store + pipes signals to store
+  // This is the ONLY place useWebSocket is called
+  useWebSocket();
+
+  // Register a single notification handler for incoming signals
+  useEffect(() => {
+    const unsubSignal = wsService.onSignal(async (signal: SMCSignal) => {
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `⚡ New Signal — ${signal.pair.replace("USDT", "")}/USDT`,
+            body: `${signal.type === "BUY" ? "🟢 LONG" : "🔴 SHORT"} · Entry ${signal.entry} · RR 1:${signal.risk_reward} · ${signal.confidence_score}% confidence`,
+            sound: "default",
+            data: { screen: "signal-detail", signalId: signal.signal_id, pair: signal.pair },
+          },
+          trigger: null,
+        });
+      } catch (err) {
+        console.warn("[WS] Notification scheduling failed:", err);
+      }
+    });
+    return () => unsubSignal();
+  }, []);
+
   return null;
 }
 
 export default function RootLayout() {
-  const [appReady, setAppReady] = useState(false);
+  const [appReady, setAppReady]   = useState(false);
+  const [authed,   setAuthed]     = useState(false);
+  const wsStarted = useRef(false);
 
-  const addSignal        = useSignalStore((s) => s.addSignal);
   const hydrate          = useAuthStore((s) => s.hydrate);
   const hydrateWatchlist = useWatchlistStore((s) => s.hydrate);
 
-  // ── Boot sequence ────────────────────────────────────────────────────
+  // ── Boot sequence ──────────────────────────────────────────────────
   useEffect(() => {
     async function boot() {
       try {
         await sessionReady;
         await hydrate();
         await hydrateWatchlist();
+
+        // Check if we have a valid token after hydration
+        const token = useAuthStore.getState().token;
+        if (token) setAuthed(true);
       } catch (err) {
         console.error("[Boot] Error during hydration:", err);
       } finally {
@@ -49,59 +82,49 @@ export default function RootLayout() {
     boot();
   }, []);
 
-  // ── Supabase auth state listener ─────────────────────────────────────
+  // ── Connect WS only after we have a confirmed token ───────────────
+  useEffect(() => {
+    if (authed && !wsStarted.current) {
+      wsStarted.current = true;
+      wsService.connect();
+    }
+  }, [authed]);
+
+  // ── Supabase auth state listener ───────────────────────────────────
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event: AuthChangeEvent, session: Session | null) => {
         if (session) {
           useAuthStore.getState().login(session.access_token, session.user.id);
+          setAuthed(true);
+          // Reconnect WS with fresh token if disconnected
+          if (wsService.getStatus() === "DISCONNECTED") {
+            wsStarted.current = false; // allow re-trigger
+            setAuthed(true);           // re-trigger effect above
+          }
         } else {
           useAuthStore.setState({ token: null, userId: null, user: null });
+          setAuthed(false);
+          wsStarted.current = false;
+          wsService.disconnect();
         }
       }
     );
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // ── Push notifications ───────────────────────────────────────────────
+  // ── Push notifications — setup after boot ─────────────────────────
   useEffect(() => {
     const cleanup = setupNotifications();
     return cleanup;
   }, []);
 
-  // ── WebSocket — real-time signal delivery ────────────────────────────
+  // ── Cleanup WS on unmount ──────────────────────────────────────────
   useEffect(() => {
-    wsService.connect();
-
-    const unsubSignal = wsService.onSignal(async (signal) => {
-      // Add to the signal store (shows immediately on Signals page)
-      addSignal(signal);
-
-      // Fire a local push notification for every new signal
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: `⚡ New Signal — ${signal.pair.replace("USDT", "")}/USDT`,
-            body: `${signal.type === "BUY" ? "🟢 LONG" : "🔴 SHORT"} · Entry ${signal.entry} · RR 1:${signal.risk_reward} · ${signal.confidence_score}% confidence`,
-            sound: "default",
-            data: {
-              screen:   "signal-detail",
-              signalId: signal.signal_id,
-              pair:     signal.pair,
-            },
-          },
-          trigger: null,
-        });
-      } catch (err) {
-        console.warn("[WS] Notification scheduling failed:", err);
-      }
-    });
-
     return () => {
-      unsubSignal();
       wsService.disconnect();
     };
-  }, [addSignal]);
+  }, []);
 
   if (!appReady) {
     return (
@@ -114,7 +137,6 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="light" />
-      {/* AppCore runs price monitor inside the provider */}
       <AppCore />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

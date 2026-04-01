@@ -1,7 +1,6 @@
-// FILE: apps/mobile/components/SignalCard.tsx
-import {
-  View, Text, StyleSheet, TouchableOpacity,
-} from "react-native";
+// LOCATION: apps/mobile/components/SignalCard.tsx
+
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Colors } from "../utils/theme";
 import ConfidenceBar from "./ConfidenceBar";
 import type { SMCSignal } from "../services/api";
@@ -11,25 +10,25 @@ interface Props {
   onPress: () => void;
 }
 
-const CONFLUENCE_ABBREVIATIONS: Record<string, string> = {
-  "Liquidity Sweep":   "LIQ",
-  "Order Block Tap":   "OB",
-  "BOS/CHOCH":         "BOS",
-  "Fair Value Gap":    "FVG",
-  "HTF Bias Aligned":  "HTF",
-  "Displacement":      "DISP",
-  "Premium Zone":      "PREM",
-  "Discount Zone":     "DISC",
+// Full names shown on the card chips (short but readable)
+const CONFLUENCE_SHORT: Record<string, string> = {
+  "Liquidity Sweep":  "Liquidity Sweep",
+  "Order Block Tap":  "Order Block",
+  "BOS/CHOCH":        "BOS / CHoCH",
+  "Fair Value Gap":   "FVG",
+  "HTF Bias Aligned": "HTF Aligned",
+  "Displacement":     "Displacement",
+  "Premium Zone":     "Premium Zone",
+  "Discount Zone":    "Discount Zone",
 };
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60)    return `${s}s ago`;
-  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+  if (s < 60)   return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   return `${Math.floor(s / 3600)}h ago`;
 }
 
-// Signal is "new" if it was published in the last 10 minutes
 function isNew(ts: number): boolean {
   return Date.now() - ts < 10 * 60 * 1000;
 }
@@ -40,9 +39,22 @@ function confidenceColor(score: number): string {
   return Colors.red;
 }
 
+function parsePair(pair: string): { base: string; quote: string } {
+  if (pair.endsWith("USDT")) return { base: pair.replace("USDT", ""), quote: "USDT" };
+  if (pair.endsWith("BTC"))  return { base: pair.replace("BTC", ""),  quote: "BTC"  };
+  if (pair.endsWith("ETH"))  return { base: pair.replace("ETH", ""),  quote: "ETH"  };
+  return { base: pair, quote: "" };
+}
+
 export default function SignalCard({ signal, onPress }: Props) {
-  const isBuy   = signal.type === "BUY";
+  const isBuy     = signal.type === "BUY";
   const newSignal = isNew(signal.timestamp);
+  const { base, quote } = parsePair(signal.pair);
+
+  // Normalise confluences — sometimes arrives as comma-packed string
+  const confluences: string[] = Array.isArray(signal.confluences)
+    ? signal.confluences
+    : (signal.confluences as unknown as string)?.split(",").map((c: string) => c.trim()) ?? [];
 
   return (
     <TouchableOpacity
@@ -50,11 +62,11 @@ export default function SignalCard({ signal, onPress }: Props) {
       onPress={onPress}
       activeOpacity={0.8}
     >
-      {/* Top row */}
+      {/* ── Top row: pair / direction / age ── */}
       <View style={styles.topRow}>
         <View style={styles.pairWrap}>
-          <Text style={styles.pair}>{signal.pair.replace("USDT", "")}</Text>
-          <Text style={styles.pairQuote}>/USDT</Text>
+          <Text style={styles.pair}>{base}</Text>
+          <Text style={styles.pairQuote}>/{quote}</Text>
           {newSignal && (
             <View style={styles.newBadge}>
               <Text style={styles.newBadgeText}>NEW</Text>
@@ -71,12 +83,10 @@ export default function SignalCard({ signal, onPress }: Props) {
         <Text style={styles.time}>{timeAgo(signal.timestamp)}</Text>
       </View>
 
-      {/* Confidence bar */}
-      <View style={styles.confRow}>
-        <ConfidenceBar score={signal.confidence_score} />
-      </View>
+      {/* ── Confidence bar ── */}
+      <ConfidenceBar score={signal.confidence_score} />
 
-      {/* HTF Bias */}
+      {/* ── HTF bias + timeframe ── */}
       <View style={styles.htfRow}>
         <Text style={styles.htfLabel}>HTF {signal.htf_timeframe}</Text>
         <Text style={[styles.htfValue, {
@@ -90,34 +100,37 @@ export default function SignalCard({ signal, onPress }: Props) {
         <Text style={styles.htfLabel}>{signal.timeframe} entry</Text>
       </View>
 
-      {/* Confluence badges */}
-      <View style={styles.confBadges}>
-        {signal.confluences.map((c) => (
-          <View key={c} style={styles.confBadge}>
-            <Text style={styles.confBadgeText}>
-              {CONFLUENCE_ABBREVIATIONS[c] ?? c.slice(0, 4).toUpperCase()}
-            </Text>
-          </View>
-        ))}
-      </View>
+      {/* ── Confluences — full readable names ── */}
+      {confluences.length > 0 && (
+        <View style={styles.conflRow}>
+          {confluences.map((c) => (
+            <View key={c} style={styles.conflChip}>
+              <Text style={styles.conflChipText}>
+                {CONFLUENCE_SHORT[c] ?? c}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
 
-      {/* RR row */}
+      {/* ── Bottom row: RR / entry / score / CTA ── */}
       <View style={styles.bottomRow}>
-        <View style={styles.rrBox}>
-          <Text style={styles.rrLabel}>RR</Text>
-          <Text style={styles.rrValue}>1:{signal.risk_reward}</Text>
+        <View style={styles.statBox}>
+          <Text style={styles.statLabel}>RR</Text>
+          <Text style={styles.statValue}>1:{signal.risk_reward}</Text>
         </View>
-        <View style={styles.entryBox}>
-          <Text style={styles.entryLabel}>Entry</Text>
-          <Text style={styles.entryValue}>{signal.entry}</Text>
+
+        <View style={styles.statBox}>
+          <Text style={styles.statLabel}>ENTRY</Text>
+          <Text style={styles.statValue}>{signal.entry}</Text>
         </View>
-        <View style={styles.confScoreBox}>
-          <Text style={[styles.confScore, { color: confidenceColor(signal.confidence_score) }]}>
-            {signal.confidence_score}%
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.explainBtn} onPress={onPress}>
-          <Text style={styles.explainText}>Analysis →</Text>
+
+        <Text style={[styles.confScore, { color: confidenceColor(signal.confidence_score) }]}>
+          {signal.confidence_score}%
+        </Text>
+
+        <TouchableOpacity style={styles.analysisBtn} onPress={onPress}>
+          <Text style={styles.analysisBtnText}>Analysis →</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -133,6 +146,7 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
+
   topRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
   pairWrap: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
   pair:     { fontSize: 18, fontWeight: "800", color: Colors.text, letterSpacing: -0.5 },
@@ -152,28 +166,24 @@ const styles = StyleSheet.create({
   htfValue:{ fontSize: 11, fontWeight: "800" },
   htfSep:  { fontSize: 11, color: Colors.muted },
 
-  confRow: {},
-  confBadges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  confBadge:  {
-    paddingHorizontal: 8, paddingVertical: 3,
-    backgroundColor: "rgba(0,212,255,0.08)",
-    borderRadius: 4, borderWidth: 1, borderColor: "rgba(0,212,255,0.2)",
+  conflRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  conflChip: {
+    paddingHorizontal: 9, paddingVertical: 4,
+    backgroundColor: "rgba(0,212,255,0.07)",
+    borderRadius: 6, borderWidth: 1, borderColor: "rgba(0,212,255,0.2)",
   },
-  confBadgeText: { fontSize: 10, color: Colors.accent, fontWeight: "700", letterSpacing: 0.5 },
+  conflChipText: { fontSize: 11, color: Colors.accent, fontWeight: "600" },
 
-  bottomRow:   { flexDirection: "row", alignItems: "center", gap: 10 },
-  rrBox:       { alignItems: "center" },
-  rrLabel:     { fontSize: 9, color: Colors.muted, letterSpacing: 1, fontWeight: "700" },
-  rrValue:     { fontSize: 13, fontWeight: "800", color: Colors.text },
-  entryBox:    { flex: 1, alignItems: "flex-start" },
-  entryLabel:  { fontSize: 9, color: Colors.muted, letterSpacing: 1, fontWeight: "700" },
-  entryValue:  { fontSize: 13, fontWeight: "700", color: Colors.text },
-  confScoreBox:{ alignItems: "center" },
-  confScore:   { fontSize: 14, fontWeight: "800" },
-  explainBtn:  {
+  bottomRow:  { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 },
+  statBox:    { alignItems: "flex-start", minWidth: 48 },
+  statLabel:  { fontSize: 9, color: Colors.muted, letterSpacing: 1, fontWeight: "700" },
+  statValue:  { fontSize: 13, fontWeight: "700", color: Colors.text },
+  confScore:  { fontSize: 14, fontWeight: "800", flex: 1, textAlign: "right" },
+
+  analysisBtn: {
     paddingHorizontal: 12, paddingVertical: 6,
     backgroundColor: "rgba(0,212,255,0.08)",
     borderRadius: 8, borderWidth: 1, borderColor: "rgba(0,212,255,0.25)",
   },
-  explainText: { fontSize: 12, color: Colors.accent, fontWeight: "700" },
+  analysisBtnText: { fontSize: 12, color: Colors.accent, fontWeight: "700" },
 });

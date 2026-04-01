@@ -1,16 +1,20 @@
 // FILE: apps/mobile/app/(tabs)/signals.tsx
+// LOCATION: apps/mobile/app/(tabs)/signals.tsx
+
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
   RefreshControl, ActivityIndicator, ScrollView,
 } from "react-native";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSignalStore, type SignalWithStatus } from "../../store/useSignalStore";
-import { useWebSocket } from "../../hooks/useWebSocket";
 import SignalCard from "../../components/SignalCard";
 import { Colors } from "../../utils/theme";
 import { fetchSignals } from "../../services/api";
+
+// NOTE: useWebSocket is NOT called here — it runs once in AppCore (_layout.tsx).
+// Calling it here again would register duplicate signal/status handlers.
 
 type Filter = "all" | "BUY" | "SELL" | "high";
 const FILTER_LABELS: Record<Filter, string> = {
@@ -21,16 +25,32 @@ const FILTER_LABELS: Record<Filter, string> = {
 };
 
 export default function SignalsScreen() {
-  const { isConnected } = useWebSocket();
-
+  // Read connection status directly from store — no hook needed
+  const isConnected = useSignalStore((s) => s.isConnected);
   const setSignals  = useSignalStore((s) => s.setSignals);
+  const addSignals  = useSignalStore((s) => s.addSignals);
   const markAllRead = useSignalStore((s) => s.markAllRead);
+  const activeFilter = useSignalStore((s) => s.activeFilter);
+  const setFilter    = useSignalStore((s) => s.setFilter);
+  const filtered     = useSignalStore((s) => s.filtered());
+
+  // Track if we've done initial load — subsequent fetches merge instead of replace
+  const initialLoadDone = useRef(false);
 
   const { refetch, isLoading } = useQuery({
     queryKey: ["signals"],
-    queryFn:  async () => {
+    queryFn: async () => {
       const res = await fetchSignals({ limit: 50 });
-      if (res.signals?.length) setSignals(res.signals);
+      if (res.signals?.length) {
+        if (!initialLoadDone.current) {
+          // First load: set as base, don't overwrite WS signals that may have arrived
+          setSignals(res.signals);
+          initialLoadDone.current = true;
+        } else {
+          // Subsequent pulls: merge — only add signals not already in store
+          addSignals(res.signals);
+        }
+      }
       return res;
     },
     refetchOnWindowFocus: false,
@@ -40,10 +60,6 @@ export default function SignalsScreen() {
   useEffect(() => {
     markAllRead();
   }, []);
-
-  const activeFilter = useSignalStore((s) => s.activeFilter);
-  const setFilter    = useSignalStore((s) => s.setFilter);
-  const filtered     = useSignalStore((s) => s.filtered());
 
   const renderSignal = ({ item }: { item: SignalWithStatus }) => (
     <SignalCard
@@ -123,20 +139,16 @@ export default function SignalsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: Colors.bg },
+  container: { flex: 1, backgroundColor: Colors.bg },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16,
   },
-  title:  { fontSize: 24, fontWeight: "800", color: Colors.text, letterSpacing: -0.5 },
-  wsRow:  { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  wsDot:  { width: 7, height: 7, borderRadius: 4 },
-  wsLabel:{ fontSize: 10, color: Colors.muted, letterSpacing: 2, fontWeight: "600" },
-  count:  { fontSize: 13, color: Colors.muted, fontWeight: "600" },
+  title:   { fontSize: 24, fontWeight: "800", color: Colors.text, letterSpacing: -0.5 },
+  wsRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  wsDot:   { width: 7, height: 7, borderRadius: 4 },
+  wsLabel: { fontSize: 10, color: Colors.muted, letterSpacing: 2, fontWeight: "600" },
+  count:   { fontSize: 13, color: Colors.muted, fontWeight: "600" },
 
   filterRow: { maxHeight: 48, marginBottom: 4 },
   chip: {
@@ -144,14 +156,14 @@ const styles = StyleSheet.create({
     borderRadius: 20, borderWidth: 1,
     borderColor: Colors.border, backgroundColor: Colors.surface,
   },
-  chipActive: { borderColor: Colors.accent, backgroundColor: "rgba(0,212,255,0.1)" },
-  chipText: { fontSize: 12, color: Colors.muted, fontWeight: "700" },
+  chipActive:     { borderColor: Colors.accent, backgroundColor: "rgba(0,212,255,0.1)" },
+  chipText:       { fontSize: 12, color: Colors.muted, fontWeight: "700" },
   chipTextActive: { color: Colors.accent },
 
   list: { padding: 16, paddingTop: 8, gap: 12 },
 
-  loadingWrap:  { flex: 1, alignItems: "center", justifyContent: "center", marginTop: 80 },
-  loadingText:  { color: Colors.muted, marginTop: 12, fontSize: 14 },
+  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", marginTop: 80 },
+  loadingText: { color: Colors.muted, marginTop: 12, fontSize: 14 },
 
   emptyWrap:    { alignItems: "center", paddingTop: 80, paddingHorizontal: 32 },
   emptyIcon:    { fontSize: 48, marginBottom: 16 },
