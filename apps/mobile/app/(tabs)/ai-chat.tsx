@@ -60,7 +60,7 @@ const ChatBubble = ({ message }: { message: Message }) => {
     <View style={[bubbleStyles.wrap, isUser ? bubbleStyles.userWrap : bubbleStyles.aiWrap]}>
       {!isUser && (
         <View style={bubbleStyles.aiLabel}>
-          <Text style={bubbleStyles.aiLabelText}>SMC AI</Text>
+          <Text style={bubbleStyles.aiLabelText}>LamboAI Coach</Text>
         </View>
       )}
       <View style={[bubbleStyles.bubble, isUser ? bubbleStyles.userBubble : bubbleStyles.aiBubble]}>
@@ -170,10 +170,10 @@ export default function AiChatScreen() {
           <Text style={styles.aiAvatarText}>AI</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>SMC Mentor</Text>
+          <Text style={styles.title}>LamboAI Coach</Text>
           <Text style={styles.subtitle}>
             {watchlist.length > 0
-              ? `Watching ${watchlist.length} trade${watchlist.length > 1 ? "s" : ""} · Context-aware`
+              ? `Watching ${watchlist.length} trade${watchlist.length > 1 ? "s" : ""}      `
               : "Context-aware · SMC expert"}
           </Text>
         </View>
@@ -276,8 +276,8 @@ const styles = StyleSheet.create({
   },
   typingText:      { fontSize: 13, color: Colors.muted },
   quickRow:        { maxHeight: 52, marginBottom: 8 },
-  quickChip:       { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: Colors.accentPurple, backgroundColor: "rgba(123,47,190,0.1)" },
-  quickChipText:   { fontSize: 12, color: Colors.accentPurple, fontWeight: "600" },
+  quickChip:       { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: Colors.muted, backgroundColor: "rgba(4, 75, 120, 0.1)" },
+  quickChipText:   { fontSize: 12, color: Colors.muted, fontWeight: "600" },
   inputRow:        {
     flexDirection: "row", alignItems: "flex-end", gap: 10,
     paddingHorizontal: 16, paddingBottom: Platform.OS === "ios" ? 34 : 20,

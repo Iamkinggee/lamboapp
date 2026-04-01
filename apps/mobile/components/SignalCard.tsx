@@ -129,9 +129,9 @@ export default function SignalCard({ signal, onPress }: Props) {
           {signal.confidence_score}%
         </Text>
 
-        <TouchableOpacity style={styles.analysisBtn} onPress={onPress}>
+        {/* <TouchableOpacity style={styles.analysisBtn} onPress={onPress}>
           <Text style={styles.analysisBtnText}>Analysis →</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
     </TouchableOpacity>
   );

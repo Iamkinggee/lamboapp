@@ -164,9 +164,9 @@ export default function ProfileScreen() {
         <SettingRow label="Version" sub="">
           <Text style={styles.settingValue}>1.0.0</Text>
         </SettingRow>
-        <SettingRow label="Stack" sub="">
+        {/* <SettingRow label="Stack" sub="">
           <Text style={[styles.settingValue, { fontSize: 10 }]}>Groq · Supabase · AWS</Text>
-        </SettingRow>
+        </SettingRow> */}
       </View>
 
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
@@ -208,6 +208,6 @@ const styles = StyleSheet.create({
   pairChipText: { fontSize: 12, color: Colors.muted, fontWeight: "700" },
   pairChipTextActive: { color: Colors.accent },
 
-  logoutBtn: { marginHorizontal: 20, marginTop: 20, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,71,87,0.3)", backgroundColor: "rgba(255,71,87,0.08)", alignItems: "center" },
-  logoutText: { color: Colors.red, fontSize: 14, fontWeight: "700" },
+  logoutBtn: { marginHorizontal: 20, marginTop: 20, padding: 16, borderRadius: 12, borderWidth: 1, backgroundColor: "rgba(255, 255, 255, 0.08)", alignItems: "center" },
+  logoutText: {   color: Colors.textSecondary, fontSize: 14, fontWeight: "700" },
 });

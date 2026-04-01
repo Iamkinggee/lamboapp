@@ -195,7 +195,7 @@ function CompletedItem({
 
       <View style={styles.historyMeta}>
         <View style={styles.historyMetaItem}>
-          <Text style={styles.statLabel}>CONF</Text>
+          <Text style={styles.statLabel}>CONFLUENCE</Text>
           <Text style={styles.statValue}>{signal.confidence_score}%</Text>
         </View>
         <View style={styles.historyMetaItem}>
@@ -204,8 +204,8 @@ function CompletedItem({
         </View>
         {trade.autoResolved && (
           <View style={styles.historyMetaItem}>
-            <Text style={[styles.statLabel, { color: Colors.accent }]}>SOURCE</Text>
-            <Text style={[styles.statValue, { color: Colors.accent, fontSize: 11 }]}>Price hit</Text>
+            {/* <Text style={[styles.statLabel, { color: Colors.muted }]}>SOURCE</Text>
+            <Text style={[styles.statValue, { color: Colors.textSecondary, fontSize: 11 }]}>Price hit</Text> */}
           </View>
         )}
       </View>
@@ -298,7 +298,7 @@ export default function HistoryScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab === "watchlist" ? "👁 Watchlist" : "📊 History"}
+              {tab === "watchlist" ? " Watchlist" : " History"}
             </Text>
             {tab === "watchlist" && watchlist.length > 0 && (
               <View style={styles.tabBadge}>
@@ -497,9 +497,9 @@ const styles = StyleSheet.create({
 
   deleteFullBtn: {
     marginTop: 4, padding: 10, borderRadius: 8,
-    borderWidth: 1, borderColor: "rgba(255,71,87,0.3)", alignItems: "center",
+    borderWidth: 1,backgroundColor: "rgba(0, 0, 0, 0.3)", alignItems: "center",
   },
-  deleteFullBtnText: { color: Colors.red, fontSize: 12, fontWeight: "700" },
+  deleteFullBtnText: { color: Colors.textSecondary, fontSize: 12, fontWeight: "700" },
 
   statsRow: { flexDirection: "row", paddingHorizontal: 16, gap: 8, marginBottom: 4 },
   statCard: {
