@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
   Modal, Alert, ScrollView,
 } from "react-native";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Colors } from "../../utils/theme";
 import { useWatchlistStore, type WatchlistEntry, type CompletedTrade } from "../../store/useWatchlistStore";
 
@@ -11,10 +11,7 @@ type Tab = "watchlist" | "history";
 
 // ── Outcome selector modal ────────────────────────────────────────────────────
 function OutcomeModal({
-  visible,
-  entry,
-  onClose,
-  onConfirm,
+  visible, entry, onClose, onConfirm,
 }: {
   visible:   boolean;
   entry:     WatchlistEntry | null;
@@ -40,18 +37,18 @@ function OutcomeModal({
                 key={o}
                 style={[
                   styles.outcomeBtn,
-                  o === "WIN"      && styles.outcomeBtnWin,
-                  o === "LOSS"     && styles.outcomeBtnLoss,
-                  o === "BREAKEVEN"&& styles.outcomeBtnBE,
+                  o === "WIN"       && styles.outcomeBtnWin,
+                  o === "LOSS"      && styles.outcomeBtnLoss,
+                  o === "BREAKEVEN" && styles.outcomeBtnBE,
                 ]}
                 onPress={() => onConfirm(o)}
                 activeOpacity={0.8}
               >
                 <Text style={[
                   styles.outcomeBtnText,
-                  o === "WIN"      && { color: Colors.green },
-                  o === "LOSS"     && { color: Colors.red },
-                  o === "BREAKEVEN"&& { color: Colors.caution },
+                  o === "WIN"       && { color: Colors.green   },
+                  o === "LOSS"      && { color: Colors.red     },
+                  o === "BREAKEVEN" && { color: Colors.caution },
                 ]}>
                   {o === "BREAKEVEN" ? "B/E" : o}
                 </Text>
@@ -70,9 +67,7 @@ function OutcomeModal({
 
 // ── Watchlist item ────────────────────────────────────────────────────────────
 function WatchlistItem({
-  entry,
-  onClose,
-  onDelete,
+  entry, onClose, onDelete,
 }: {
   entry:    WatchlistEntry;
   onClose:  (entry: WatchlistEntry) => void;
@@ -144,8 +139,7 @@ function WatchlistItem({
 
 // ── Completed trade item ──────────────────────────────────────────────────────
 function CompletedItem({
-  trade,
-  onDelete,
+  trade, onDelete,
 }: {
   trade:    CompletedTrade;
   onDelete: (id: string) => void;
@@ -153,10 +147,9 @@ function CompletedItem({
   const signal = trade.signal;
   const isBuy  = signal.type === "BUY";
   const outcomeColor =
-    trade.outcome === "WIN"       ? Colors.green  :
-    trade.outcome === "LOSS"      ? Colors.red    : Colors.caution;
-  const outcomeLabel =
-    trade.outcome === "BREAKEVEN" ? "B/E" : trade.outcome;
+    trade.outcome === "WIN"  ? Colors.green  :
+    trade.outcome === "LOSS" ? Colors.red    : Colors.caution;
+  const outcomeLabel = trade.outcome === "BREAKEVEN" ? "B/E" : trade.outcome;
   const date = new Date(trade.closedAt).toLocaleDateString();
 
   return (
@@ -170,7 +163,6 @@ function CompletedItem({
               {isBuy ? "LONG" : "SHORT"}
             </Text>
           </View>
-          {/* Auto-resolved badge */}
           {trade.autoResolved && (
             <View style={styles.autoBadge}>
               <Text style={styles.autoBadgeText}>AUTO</Text>
@@ -245,12 +237,32 @@ export default function HistoryScreen() {
     hydrate,
   } = useWatchlistStore();
 
-  useEffect(() => { hydrate(); }, []);
+  // FIX: hydrate() must only run ONCE on mount, not on every render.
+  // The original code called hydrate() inside useEffect([]) correctly,
+  // but also read `prevCompletedCount` from the store at the top level
+  // without wiring it to any effect — dead code that did nothing.
+  // Replaced with a ref-based approach that actually switches the tab
+  // when a new auto-resolved trade arrives from the price monitor.
+  const prevCountRef = useRef(completedTrades.length);
 
-  // Switch to history tab automatically when a new auto-resolved trade appears
-  const prevCompletedCount = useWatchlistStore((s) => s.completedTrades.length);
+  useEffect(() => {
+    hydrate();
+  }, []); // intentional empty deps — run once on mount
 
-  // ── Stats for history tab ─────────────────────────────────────────────────
+  // FIX: Actually auto-switch to history when a new auto-resolved trade appears.
+  // Compares against a ref (not state) so we don't cause extra renders.
+  useEffect(() => {
+    const newCount = completedTrades.length;
+    if (newCount > prevCountRef.current) {
+      const latest = completedTrades[0]; // most recent first
+      if (latest?.autoResolved) {
+        setActiveTab("history");
+      }
+    }
+    prevCountRef.current = newCount;
+  }, [completedTrades.length]);
+
+  // Stats for history tab
   const wins    = completedTrades.filter((t) => t.outcome === "WIN").length;
   const losses  = completedTrades.filter((t) => t.outcome === "LOSS").length;
   const total   = completedTrades.length;
@@ -341,14 +353,13 @@ export default function HistoryScreen() {
       {/* ── History Tab ── */}
       {activeTab === "history" && (
         <>
-          {/* Stats row */}
           {total > 0 && (
             <View style={styles.statsRow}>
               {[
-                { label: "Total",    value: total,           color: Colors.accent },
-                { label: "Wins",     value: wins,            color: Colors.green  },
-                { label: "Win Rate", value: `${winRate}%`,   color: winRate >= 50 ? Colors.green : Colors.red },
-                { label: "Losses",   value: losses,          color: Colors.red    },
+                { label: "Total",    value: total,          color: Colors.accent },
+                { label: "Wins",     value: wins,           color: Colors.green  },
+                { label: "Win Rate", value: `${winRate}%`,  color: winRate >= 50 ? Colors.green : Colors.red },
+                { label: "Losses",   value: losses,         color: Colors.red    },
               ].map(({ label, value, color }) => (
                 <View key={label} style={styles.statCard}>
                   <Text style={[styles.statCardValue, { color }]}>{value}</Text>
@@ -358,7 +369,6 @@ export default function HistoryScreen() {
             </View>
           )}
 
-          {/* Auto-resolved indicator */}
           {autoResolved > 0 && (
             <View style={styles.autoBar}>
               <Text style={styles.autoBarText}>
@@ -388,7 +398,6 @@ export default function HistoryScreen() {
         </>
       )}
 
-      {/* Outcome modal */}
       <OutcomeModal
         visible={!!closingEntry}
         entry={closingEntry}
@@ -445,19 +454,18 @@ const styles = StyleSheet.create({
 
   list: { padding: 16, gap: 12 },
 
-  // Card
   card: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     borderLeftWidth: 3, borderRadius: 14, padding: 14, gap: 10,
   },
-  cardTop:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cardPairRow:  { flexDirection: "row", alignItems: "center", gap: 8 },
-  cardPair:     { fontSize: 17, fontWeight: "800", color: Colors.text },
-  cardPairQuote:{ fontSize: 12, color: Colors.muted },
-  cardAge:      { fontSize: 11, color: Colors.muted },
+  cardTop:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  cardPairRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
+  cardPair:      { fontSize: 17, fontWeight: "800", color: Colors.text },
+  cardPairQuote: { fontSize: 12, color: Colors.muted },
+  cardAge:       { fontSize: 11, color: Colors.muted },
 
-  dirBadge:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  dirBadgeText:{ fontSize: 11, fontWeight: "800" },
+  dirBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  dirBadgeText: { fontSize: 11, fontWeight: "800" },
 
   autoBadge:     { backgroundColor: "rgba(123,47,190,0.15)", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: "rgba(123,47,190,0.3)" },
   autoBadgeText: { fontSize: 9, fontWeight: "800", color: Colors.accentPurple, letterSpacing: 0.5 },
@@ -484,20 +492,15 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: { color: Colors.red, fontSize: 14, fontWeight: "800" },
 
-  outcomePill: {
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 8, borderWidth: 1,
-  },
+  outcomePill:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   outcomePillText: { fontSize: 11, fontWeight: "800" },
 
   deleteFullBtn: {
     marginTop: 4, padding: 10, borderRadius: 8,
-    borderWidth: 1, borderColor: "rgba(255,71,87,0.3)",
-    alignItems: "center",
+    borderWidth: 1, borderColor: "rgba(255,71,87,0.3)", alignItems: "center",
   },
   deleteFullBtnText: { color: Colors.red, fontSize: 12, fontWeight: "700" },
 
-  // Stats row
   statsRow: { flexDirection: "row", paddingHorizontal: 16, gap: 8, marginBottom: 4 },
   statCard: {
     flex: 1, backgroundColor: Colors.surface, borderWidth: 1,
@@ -506,13 +509,11 @@ const styles = StyleSheet.create({
   statCardValue: { fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
   statCardLabel: { fontSize: 9, color: Colors.muted, fontWeight: "700", marginTop: 2, letterSpacing: 1 },
 
-  // Empty
   emptyWrap:    { alignItems: "center", paddingTop: 70 },
   emptyIcon:    { fontSize: 48, marginBottom: 16 },
   emptyText:    { fontSize: 18, fontWeight: "700", color: Colors.text, marginBottom: 8 },
   emptySubText: { fontSize: 14, color: Colors.muted, textAlign: "center", lineHeight: 22, paddingHorizontal: 32 },
 
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
   modal: {
     backgroundColor: Colors.surface, borderTopLeftRadius: 24,

@@ -1,8 +1,6 @@
 // LOCATION: apps/mobile/services/ws.ts
-// ──────────────────────────────────────────────
-// apps/mobile/services/ws.ts
 // WebSocket service — singleton connection manager
-// ──────────────────────────────────────────────
+
 import { getToken } from './api';
 import { SMCSignal } from './api';
 
@@ -18,8 +16,8 @@ class WebSocketService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
-  private pingInterval: ReturnType<typeof setInterval> | null = null;
   private authenticated = false;
+  private connecting = false;
 
   private signalHandlers: Set<SignalHandler> = new Set();
   private statusHandlers: Set<StatusHandler> = new Set();
@@ -45,14 +43,14 @@ class WebSocketService {
   }
 
   connect(): void {
-    if (this.status === 'CONNECTED' || this.status === 'CONNECTING') return;
-    // Reset reconnect counter on a fresh manual connect
+    if (this.status === 'CONNECTED' || this.status === 'CONNECTING' || this.connecting) return;
     this.reconnectAttempts = 0;
     this._connect();
   }
 
   disconnect(): void {
-    this.reconnectAttempts = this.maxReconnectAttempts; // prevent auto-reconnect
+    this.reconnectAttempts = this.maxReconnectAttempts;
+    this.connecting = false;
     this._cleanup();
     this._setStatus('DISCONNECTED');
   }
@@ -64,14 +62,19 @@ class WebSocketService {
   // ── Internal ────────────────────────────────
 
   private async _connect(): Promise<void> {
+    if (this.connecting) return;
+    this.connecting = true;
+
     this._setStatus(this.reconnectAttempts > 0 ? 'RECONNECTING' : 'CONNECTING');
     this.authenticated = false;
 
-    // Always fetch a fresh token on every connection attempt
     const token = await getToken();
     if (!token) {
-      console.warn('[WS] No token — cannot connect');
-      this._setStatus('DISCONNECTED');
+      // FIX: If we have no token, schedule a retry instead of giving up.
+      // This handles cold-start race where Supabase hasn't restored the session yet.
+      console.warn('[WS] No token yet — will retry in 3s');
+      this.connecting = false;
+      this.reconnectTimer = setTimeout(() => this._connect(), 3000);
       return;
     }
 
@@ -79,14 +82,14 @@ class WebSocketService {
       this.ws = new WebSocket(WS_URL);
     } catch (err) {
       console.error('[WS] Failed to create WebSocket:', err);
+      this.connecting = false;
       this._scheduleReconnect();
       return;
     }
 
     this.ws.onopen = () => {
       console.log('[WS] Socket open — sending auth');
-      // Send both `token` and `authorization` field names to handle server variants
-      this.send({ type: 'auth', token, authorization: token });
+      this.send({ type: 'auth', token });
     };
 
     this.ws.onmessage = (event) => {
@@ -98,11 +101,9 @@ class WebSocketService {
         return;
       }
 
-      // ── Auth error from server ───────────────
       if (msg.event === 'error') {
         const errMsg = (msg.data as { message?: string })?.message ?? String(msg.data);
         console.error('[WS] Server error:', errMsg);
-        // On auth error, close and trigger a fresh token reconnect
         if (errMsg.toLowerCase().includes('token') || errMsg.toLowerCase().includes('auth')) {
           console.warn('[WS] Auth error — will refresh token on reconnect');
           this.ws?.close();
@@ -110,16 +111,14 @@ class WebSocketService {
         return;
       }
 
-      // ── Ping / connection confirmation ───────
       if (msg.event === 'ping') {
         this.send({ type: 'pong' });
-
         if (!this.authenticated) {
           this.authenticated = true;
+          this.connecting = false;
           this._setStatus('CONNECTED');
           this.reconnectAttempts = 0;
           console.log('[WS] Authenticated and connected');
-
           if (this.subscribedPairs.length > 0) {
             this.send({ type: 'subscribe', pairs: this.subscribedPairs });
           }
@@ -127,9 +126,9 @@ class WebSocketService {
         return;
       }
 
-      // ── auth_ok from some server implementations ──
       if (msg.event === 'auth_ok' || msg.event === 'authenticated') {
         this.authenticated = true;
+        this.connecting = false;
         this._setStatus('CONNECTED');
         this.reconnectAttempts = 0;
         console.log('[WS] Auth confirmed by server');
@@ -139,13 +138,11 @@ class WebSocketService {
         return;
       }
 
-      // ── Drop messages that arrive before auth ─
       if (!this.authenticated) {
         console.warn('[WS] Message received before auth — ignoring:', msg.event);
         return;
       }
 
-      // ── New signal ───────────────────────────
       if (msg.event === 'signal:new') {
         const signal = msg.data as SMCSignal;
         console.log(`[WS] New signal: ${signal.type} ${signal.pair} @ ${signal.entry}`);
@@ -161,6 +158,7 @@ class WebSocketService {
       const { code, wasClean } = event as unknown as { code: number; wasClean: boolean };
       console.warn(`[WS] Closed — code: ${code}, clean: ${wasClean}`);
       this.authenticated = false;
+      this.connecting = false;
       this._cleanup();
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         this._scheduleReconnect();
@@ -188,7 +186,6 @@ class WebSocketService {
   }
 
   private _cleanup(): void {
-    if (this.pingInterval)   { clearInterval(this.pingInterval);  this.pingInterval   = null; }
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
     if (this.ws) {
       this.ws.onopen    = null;
@@ -201,11 +198,11 @@ class WebSocketService {
   }
 
   private _setStatus(status: WSStatus): void {
+    if (this.status === status) return;
     this.status = status;
     console.log(`[WS] Status → ${status}`);
     this.statusHandlers.forEach((h) => h(status));
   }
 }
 
-// Singleton
 export const wsService = new WebSocketService();

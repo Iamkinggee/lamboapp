@@ -1,5 +1,4 @@
 // LOCATION: apps/mobile/services/api.ts
-// FILE: apps/mobile/services/api.ts
 
 import { supabase, sessionReady } from './supabase';
 import { useAuthStore } from '../store/useAuthStore';
@@ -7,7 +6,7 @@ import { useAuthStore } from '../store/useAuthStore';
 const getFallbackUrl = () => 'http://13.40.3.171:3001';
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? getFallbackUrl();
 
-// ── Auth ──────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────
 
 export async function apiLogin(
   email: string,
@@ -36,16 +35,32 @@ export async function apiRegister(
   return { token: data.session.access_token, userId: data.user!.id };
 }
 
-// ── Token helpers ─────────────────────────────
+// ── Token helpers ─────────────────────────────────────────────
 
 export async function getToken(): Promise<string | null> {
   await sessionReady;
 
   const { data, error } = await supabase.auth.getSession();
 
-  if (error || !data.session) {
-    console.warn('[Token] No active session');
+  if (error) {
+    console.warn('[Token] getSession error:', error.message);
     return null;
+  }
+
+  // FIX: If there's no session at all, attempt a silent refresh before giving up.
+  // This handles the case where AsyncStorage had a persisted session but
+  // the in-memory session wasn't restored yet (race on cold start).
+  if (!data.session) {
+    console.warn('[Token] No session in memory — attempting silent refresh');
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (refreshErr || !refreshed.session) {
+      console.warn('[Token] Silent refresh failed — user must log in again');
+      return null;
+    }
+    const newToken = refreshed.session.access_token;
+    await useAuthStore.getState().login(newToken, refreshed.session.user.id);
+    console.log('[Token] Silent refresh succeeded');
+    return newToken;
   }
 
   const { access_token, expires_at, user } = data.session;
@@ -78,7 +93,7 @@ export async function getToken(): Promise<string | null> {
 export async function saveToken(_token: string): Promise<void> {}
 export async function clearToken(): Promise<void> {}
 
-// ── Base fetch wrapper ────────────────────────
+// ── Base fetch wrapper ────────────────────────────────────────
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
@@ -108,7 +123,7 @@ export class APIError extends Error {
   }
 }
 
-// ── Signals ───────────────────────────────────
+// ── Signals ───────────────────────────────────────────────────
 
 export async function fetchSignals(params?: {
   limit?: number;
@@ -128,7 +143,7 @@ export async function fetchSignalById(id: string) {
   return request<{ signal: SMCSignal }>(`/signals/${id}`);
 }
 
-// ── Trades ────────────────────────────────────
+// ── Trades ────────────────────────────────────────────────────
 
 export async function logTrade(trade: Omit<TradeLog, 'id' | 'created_at'>) {
   return request<{ trade: TradeLog }>('/trades', {
@@ -144,7 +159,7 @@ export async function fetchTrades(params?: { limit?: number; offset?: number }) 
   return request<{ trades: TradeLog[]; stats: TradeStats }>(`/trades?${qs}`);
 }
 
-// ── AI ────────────────────────────────────────
+// ── AI ────────────────────────────────────────────────────────
 
 export async function sendChatMessage(message: string) {
   const truncated = message.length > 4000 ? message.slice(0, 4000) : message;
@@ -165,7 +180,7 @@ export async function fetchChatHistory() {
   return request<{ history: ChatMessage[] }>('/ai/history');
 }
 
-// ── User ──────────────────────────────────────
+// ── User ──────────────────────────────────────────────────────
 
 export async function updatePreferences(prefs: Partial<UserPreferences>) {
   return request<{ message: string }>('/user/preferences', {
@@ -188,7 +203,7 @@ export async function registerFCMToken(fcm_token: string) {
   });
 }
 
-// ── Shared Types ──────────────────────────────
+// ── Shared Types ──────────────────────────────────────────────
 
 export type SignalType   = 'BUY' | 'SELL';
 export type HTFBias      = 'BULLISH' | 'BEARISH' | 'NEUTRAL';

@@ -70,7 +70,6 @@ export default function RootLayout() {
         await hydrate();
         await hydrateWatchlist();
 
-        // Check if we have a valid token after hydration
         const token = useAuthStore.getState().token;
         if (token) setAuthed(true);
       } catch (err) {
@@ -97,10 +96,12 @@ export default function RootLayout() {
         if (session) {
           useAuthStore.getState().login(session.access_token, session.user.id);
           setAuthed(true);
-          // Reconnect WS with fresh token if disconnected
-          if (wsService.getStatus() === "DISCONNECTED") {
-            wsStarted.current = false; // allow re-trigger
-            setAuthed(true);           // re-trigger effect above
+          // FIX: Only reconnect if genuinely disconnected and not already started.
+          // Previous code called setAuthed(true) twice on the same session event,
+          // which could cause wsService.connect() to be called while already connecting.
+          const wsStatus = wsService.getStatus();
+          if (wsStatus === "DISCONNECTED" && wsStarted.current) {
+            wsStarted.current = false; // allow re-trigger on the authed effect
           }
         } else {
           useAuthStore.setState({ token: null, userId: null, user: null });
@@ -114,10 +115,13 @@ export default function RootLayout() {
   }, []);
 
   // ── Push notifications — setup after boot ─────────────────────────
+  // FIX: Register push token AFTER hydration so the session is available
+  // and registerFCMToken() won't 401 due to a missing/stale token.
   useEffect(() => {
+    if (!appReady) return; // wait until session is confirmed
     const cleanup = setupNotifications();
     return cleanup;
-  }, []);
+  }, [appReady]);
 
   // ── Cleanup WS on unmount ──────────────────────────────────────────
   useEffect(() => {

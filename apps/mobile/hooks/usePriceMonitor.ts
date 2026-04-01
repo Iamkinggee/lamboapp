@@ -1,8 +1,7 @@
 // LOCATION: apps/mobile/hooks/usePriceMonitor.ts
-//
 // Polls Binance every 30s to check live prices against SL/TP.
-// Only monitors Binance-listed crypto pairs (USDT, BTC, ETH, BNB quote pairs).
-// Tracks resolved signals in a local Set to prevent duplicate notifications.
+// Uses a module-level resolved set so it survives React re-renders AND
+// hot-reload cycles (unlike a ref which resets on remount).
 
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
@@ -13,7 +12,12 @@ import { useSignalStore } from '../store/useSignalStore';
 const PRICE_POLL_INTERVAL_MS = 30_000;
 const BINANCE_TICKER_URL     = 'https://api.binance.com/api/v3/ticker/price';
 
-// Only these quote currencies are supported on Binance spot
+// FIX: Module-level sets instead of refs.
+// Refs reset when the component unmounts/remounts (e.g. fast refresh).
+// Module-level state persists for the full JS runtime session.
+const resolvedSignals  = new Set<string>();
+const processingSignals = new Set<string>();
+
 const BINANCE_QUOTE_CURRENCIES = ['USDT', 'BUSD', 'BTC', 'ETH', 'BNB', 'USDC'];
 
 function isBinanceSymbol(symbol: string): boolean {
@@ -33,7 +37,6 @@ async function fetchPrices(symbols: string[]): Promise<Record<string, number>> {
   }
   if (valid.length === 0) return {};
 
-  // Try batch first
   try {
     const param = encodeURIComponent(JSON.stringify(valid));
     const res   = await fetch(`${BINANCE_TICKER_URL}?symbols=${param}`);
@@ -43,11 +46,8 @@ async function fetchPrices(symbols: string[]): Promise<Record<string, number>> {
       for (const { symbol, price } of data) map[symbol] = parseFloat(price);
       return map;
     }
-  } catch {
-    // fall through to individual
-  }
+  } catch { /* fall through */ }
 
-  // Fallback: individual requests
   const map: Record<string, number> = {};
   await Promise.all(
     valid.map(async (symbol) => {
@@ -73,12 +73,15 @@ async function sendLocalNotification(title: string, body: string, data?: object)
 }
 
 export function usePriceMonitor() {
-  const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Track signal IDs we've already resolved this session to prevent re-firing
-  const resolvedRef  = useRef<Set<string>>(new Set());
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Module-level running flag to prevent overlapping async ticks
+  const isRunningRef = useRef(false);
 
   useEffect(() => {
     const check = async () => {
+      // FIX: Also check store status — signals already marked TP_HIT/SL_HIT
+      // should not re-fire even if resolvedSignals was cleared (e.g. first launch
+      // where the module set is empty but the store has the resolved status).
       const watchlist     = useWatchlistStore.getState().watchlist;
       const signalEntries = useSignalStore.getState().signals.filter((s) => s.status === 'ACTIVE');
 
@@ -94,7 +97,8 @@ export function usePriceMonitor() {
       // ── 1. Check watchlist entries ─────────────────────────────────────
       for (const entry of watchlist) {
         const { signal } = entry;
-        if (resolvedRef.current.has(signal.signal_id)) continue;
+        if (resolvedSignals.has(signal.signal_id)) continue;
+        if (processingSignals.has(signal.signal_id)) continue;
 
         const price = prices[signal.pair.toUpperCase()];
         if (price == null) continue;
@@ -104,8 +108,8 @@ export function usePriceMonitor() {
         const hitSL = isBuy ? price <= signal.stop_loss   : price >= signal.stop_loss;
 
         if (hitTP || hitSL) {
-          // Mark resolved immediately to prevent re-entry on next tick
-          resolvedRef.current.add(signal.signal_id);
+          // Mark processing SYNCHRONOUSLY before any await
+          processingSignals.add(signal.signal_id);
 
           const outcome: 'WIN' | 'LOSS' = hitTP ? 'WIN' : 'LOSS';
           const label   = hitTP ? 'Take Profit' : 'Stop Loss';
@@ -114,21 +118,26 @@ export function usePriceMonitor() {
 
           console.log(`[PriceMonitor] Watchlist ${label} hit: ${signal.pair} @ ${price}`);
 
-          await useWatchlistStore.getState().autoResolveTrade(signal.signal_id, outcome);
-          useSignalStore.getState().markSignalResolved(signal.signal_id, hitTP ? 'TP_HIT' : 'SL_HIT');
-
-          await sendLocalNotification(
-            `${emoji} ${label} Hit — ${pair}`,
-            `${signal.type} trade ${outcome === 'WIN' ? 'won' : 'lost'} · Entry ${signal.entry} → ${hitTP ? signal.take_profit : signal.stop_loss}`,
-            { screen: 'history', signalId: signal.signal_id }
-          );
+          try {
+            await useWatchlistStore.getState().autoResolveTrade(signal.signal_id, outcome);
+            useSignalStore.getState().markSignalResolved(signal.signal_id, hitTP ? 'TP_HIT' : 'SL_HIT');
+            await sendLocalNotification(
+              `${emoji} ${label} Hit — ${pair}`,
+              `${signal.type} trade ${outcome === 'WIN' ? 'won' : 'lost'} · Entry ${signal.entry} → ${hitTP ? signal.take_profit : signal.stop_loss}`,
+              { screen: 'history', signalId: signal.signal_id }
+            );
+          } finally {
+            processingSignals.delete(signal.signal_id);
+            resolvedSignals.add(signal.signal_id);
+          }
         }
       }
 
       // ── 2. Check live signals ──────────────────────────────────────────
       for (const entry of signalEntries) {
         const { signal } = entry;
-        if (resolvedRef.current.has(signal.signal_id)) continue;
+        if (resolvedSignals.has(signal.signal_id)) continue;
+        if (processingSignals.has(signal.signal_id)) continue;
         if (useWatchlistStore.getState().isWatched(signal.signal_id)) continue;
 
         const price = prices[signal.pair.toUpperCase()];
@@ -139,8 +148,7 @@ export function usePriceMonitor() {
         const hitSL = isBuy ? price <= signal.stop_loss   : price >= signal.stop_loss;
 
         if (hitTP || hitSL) {
-          // Mark resolved immediately
-          resolvedRef.current.add(signal.signal_id);
+          processingSignals.add(signal.signal_id);
 
           const label = hitTP ? 'Take Profit' : 'Stop Loss';
           const emoji = hitTP ? '🎯' : '🛑';
@@ -148,19 +156,42 @@ export function usePriceMonitor() {
 
           console.log(`[PriceMonitor] Signal ${label} hit: ${signal.pair} @ ${price}`);
 
-          useSignalStore.getState().markSignalResolved(signal.signal_id, hitTP ? 'TP_HIT' : 'SL_HIT');
-
-          await sendLocalNotification(
-            `${emoji} Signal ${label} Hit — ${pair}`,
-            `${signal.type} signal closed · Entry ${signal.entry} · ${label} @ ${hitTP ? signal.take_profit : signal.stop_loss}`,
-            { screen: 'signals' }
-          );
+          try {
+            useSignalStore.getState().markSignalResolved(signal.signal_id, hitTP ? 'TP_HIT' : 'SL_HIT');
+            await sendLocalNotification(
+              `${emoji} Signal ${label} Hit — ${pair}`,
+              `${signal.type} signal closed · Entry ${signal.entry} · ${label} @ ${hitTP ? signal.take_profit : signal.stop_loss}`,
+              { screen: 'signals' }
+            );
+          } finally {
+            processingSignals.delete(signal.signal_id);
+            resolvedSignals.add(signal.signal_id);
+          }
         }
       }
     };
 
-    check();
-    intervalRef.current = setInterval(check, PRICE_POLL_INTERVAL_MS);
+    const safeCheck = async () => {
+      if (isRunningRef.current) return;
+      isRunningRef.current = true;
+      try {
+        await check();
+      } finally {
+        isRunningRef.current = false;
+      }
+    };
+
+    // FIX: Seed resolvedSignals from the store on mount so already-resolved
+    // signals don't fire again after a hot reload / app restart.
+    const allSignals = useSignalStore.getState().signals;
+    for (const s of allSignals) {
+      if (s.status !== 'ACTIVE') {
+        resolvedSignals.add(s.signal.signal_id);
+      }
+    }
+
+    safeCheck();
+    intervalRef.current = setInterval(safeCheck, PRICE_POLL_INTERVAL_MS);
 
     return () => {
       if (intervalRef.current) {
