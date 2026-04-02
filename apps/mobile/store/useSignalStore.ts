@@ -19,11 +19,8 @@ export interface SignalState {
   isConnected:  boolean;
   unreadCount:  number;
 
-  // Add a single incoming WS signal (deduped)
   addSignal:    (signal: SMCSignal) => void;
-  // Merge a batch of signals from REST without overwriting WS-only signals
   addSignals:   (signals: SMCSignal[]) => void;
-  // Full replace — only for first load
   setSignals:   (signals: SMCSignal[]) => void;
 
   setFilter:    (filter: Filter) => void;
@@ -38,13 +35,29 @@ export interface SignalState {
 
 const MAX_SIGNALS = 100;
 
+/** Deduplicate an array of SignalWithStatus by signal_id, keeping resolved over active. */
+function dedup(entries: SignalWithStatus[]): SignalWithStatus[] {
+  const seen = new Map<string, SignalWithStatus>();
+  for (const entry of entries) {
+    const existing = seen.get(entry.signal.signal_id);
+    if (!existing) {
+      seen.set(entry.signal.signal_id, entry);
+    } else {
+      // Prefer resolved status over ACTIVE if there's a conflict
+      if (existing.status === 'ACTIVE' && entry.status !== 'ACTIVE') {
+        seen.set(entry.signal.signal_id, entry);
+      }
+    }
+  }
+  return Array.from(seen.values());
+}
+
 export const useSignalStore = create<SignalState>((set, get) => ({
   signals:      [],
   activeFilter: 'all',
   isConnected:  false,
   unreadCount:  0,
 
-  // Single WS signal — prepend if not already present
   addSignal: (signal) => {
     set((state) => {
       const exists = state.signals.some((s) => s.signal.signal_id === signal.signal_id);
@@ -55,7 +68,6 @@ export const useSignalStore = create<SignalState>((set, get) => ({
     });
   },
 
-  // Merge REST batch — add any signals not already in store, preserving WS signals
   addSignals: (signals) => {
     set((state) => {
       const existingIds = new Set(state.signals.map((s) => s.signal.signal_id));
@@ -63,16 +75,14 @@ export const useSignalStore = create<SignalState>((set, get) => ({
         .filter((sig) => !existingIds.has(sig.signal_id))
         .map((sig) => ({ signal: sig, status: 'ACTIVE' as SignalStatus }));
       if (newEntries.length === 0) return state;
-      // REST signals go after any WS-only signals (which are newest)
-      const merged = [...state.signals, ...newEntries].slice(0, MAX_SIGNALS);
+      // FIX: dedup after merge to eliminate any pre-existing duplicates
+      const merged = dedup([...state.signals, ...newEntries]).slice(0, MAX_SIGNALS);
       return { signals: merged };
     });
   },
 
-  // Full replace — first load only. Preserves ACTIVE status only.
   setSignals: (signals) =>
     set((state) => {
-      // Keep any WS-only signals that aren't in the REST response
       const restIds = new Set(signals.map((s) => s.signal_id));
       const wsOnly  = state.signals.filter(
         (s) => !restIds.has(s.signal.signal_id) && s.status === 'ACTIVE'
@@ -81,7 +91,10 @@ export const useSignalStore = create<SignalState>((set, get) => ({
         const existing = state.signals.find((s) => s.signal.signal_id === signal.signal_id);
         return existing ?? { signal, status: 'ACTIVE' as SignalStatus };
       });
-      return { signals: [...wsOnly, ...fromRest].slice(0, MAX_SIGNALS) };
+      // FIX: dedup the merged result — prevents the same signal appearing
+      // twice when it arrives via both WS and the REST initial load
+      const merged = dedup([...wsOnly, ...fromRest]).slice(0, MAX_SIGNALS);
+      return { signals: merged };
     }),
 
   setFilter:    (activeFilter) => set({ activeFilter }),
@@ -99,6 +112,9 @@ export const useSignalStore = create<SignalState>((set, get) => ({
 
   markSignalResolved: (signalId, status) => {
     set((state) => ({
+      // FIX: Map ALL entries with this signal_id, not just the first one.
+      // If duplicates exist, ALL must be resolved — otherwise the duplicate
+      // ACTIVE entry re-triggers the price monitor on the next tick.
       signals: state.signals.map((s) =>
         s.signal.signal_id === signalId
           ? { ...s, status, resolvedAt: Date.now() }
@@ -109,7 +125,8 @@ export const useSignalStore = create<SignalState>((set, get) => ({
 
   filtered: () => {
     const { signals, activeFilter } = get();
-    const active = signals.filter((s) => s.status === 'ACTIVE');
+    // FIX: dedup before filtering so duplicates never reach the UI
+    const active = dedup(signals).filter((s) => s.status === 'ACTIVE');
     switch (activeFilter) {
       case 'BUY':  return active.filter((s) => s.signal.type === 'BUY');
       case 'SELL': return active.filter((s) => s.signal.type === 'SELL');
@@ -118,5 +135,5 @@ export const useSignalStore = create<SignalState>((set, get) => ({
     }
   },
 
-  resolvedSignals: () => get().signals.filter((s) => s.status !== 'ACTIVE'),
+  resolvedSignals: () => dedup(get().signals).filter((s) => s.status !== 'ACTIVE'),
 }));
