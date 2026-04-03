@@ -1,7 +1,7 @@
 // LOCATION: apps/mobile/hooks/usePriceMonitor.ts
-// Polls Binance every 30s to check live prices against SL/TP.
-// Uses a module-level resolved set so it survives React re-renders AND
-// hot-reload cycles (unlike a ref which resets on remount).
+// FIXES:
+//  3. Notifications only fired for signals that arrived AFTER app launch (addedAt > bootTime)
+//  4. resolvedSignals set is seeded from store on mount so old hits never re-fire
 
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
@@ -12,11 +12,13 @@ import { useSignalStore } from '../store/useSignalStore';
 const PRICE_POLL_INTERVAL_MS = 30_000;
 const BINANCE_TICKER_URL     = 'https://api.binance.com/api/v3/ticker/price';
 
-// FIX: Module-level sets instead of refs.
-// Refs reset when the component unmounts/remounts (e.g. fast refresh).
-// Module-level state persists for the full JS runtime session.
-const resolvedSignals  = new Set<string>();
+// Module-level: survives React re-renders and hot-reload
+const resolvedSignals   = new Set<string>();
 const processingSignals = new Set<string>();
+
+// FIX #3: record when the price monitor first mounted.
+// Only fire notifications for signals added AFTER this time.
+let bootTime = 0;
 
 const BINANCE_QUOTE_CURRENCIES = ['USDT', 'BUSD', 'BTC', 'ETH', 'BNB', 'USDC'];
 
@@ -27,11 +29,9 @@ function isBinanceSymbol(symbol: string): boolean {
 
 async function fetchPrices(symbols: string[]): Promise<Record<string, number>> {
   if (symbols.length === 0) return {};
-
   const upper   = Array.from(new Set(symbols.map((s) => s.toUpperCase())));
   const valid   = upper.filter(isBinanceSymbol);
   const invalid = upper.filter((s) => !isBinanceSymbol(s));
-
   if (invalid.length > 0) {
     console.warn('[PriceMonitor] Skipping non-Binance symbols:', invalid.join(', '));
   }
@@ -46,7 +46,7 @@ async function fetchPrices(symbols: string[]): Promise<Record<string, number>> {
       for (const { symbol, price } of data) map[symbol] = parseFloat(price);
       return map;
     }
-  } catch { /* fall through */ }
+  } catch { /* fall through to individual */ }
 
   const map: Record<string, number> = {};
   await Promise.all(
@@ -73,15 +73,23 @@ async function sendLocalNotification(title: string, body: string, data?: object)
 }
 
 export function usePriceMonitor() {
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Module-level running flag to prevent overlapping async ticks
+  const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRunningRef = useRef(false);
 
   useEffect(() => {
+    // FIX #3: stamp boot time once on mount
+    if (bootTime === 0) bootTime = Date.now();
+
+    // FIX #4: seed resolvedSignals from store so already-resolved signals
+    // don't fire notifications again after app restart / hot-reload
+    const allSignals = useSignalStore.getState().signals;
+    for (const s of allSignals) {
+      if (s.status !== 'ACTIVE') {
+        resolvedSignals.add(s.signal.signal_id);
+      }
+    }
+
     const check = async () => {
-      // FIX: Also check store status — signals already marked TP_HIT/SL_HIT
-      // should not re-fire even if resolvedSignals was cleared (e.g. first launch
-      // where the module set is empty but the store has the resolved status).
       const watchlist     = useWatchlistStore.getState().watchlist;
       const signalEntries = useSignalStore.getState().signals.filter((s) => s.status === 'ACTIVE');
 
@@ -97,7 +105,7 @@ export function usePriceMonitor() {
       // ── 1. Check watchlist entries ─────────────────────────────────────
       for (const entry of watchlist) {
         const { signal } = entry;
-        if (resolvedSignals.has(signal.signal_id)) continue;
+        if (resolvedSignals.has(signal.signal_id))   continue;
         if (processingSignals.has(signal.signal_id)) continue;
 
         const price = prices[signal.pair.toUpperCase()];
@@ -108,9 +116,7 @@ export function usePriceMonitor() {
         const hitSL = isBuy ? price <= signal.stop_loss   : price >= signal.stop_loss;
 
         if (hitTP || hitSL) {
-          // Mark processing SYNCHRONOUSLY before any await
           processingSignals.add(signal.signal_id);
-
           const outcome: 'WIN' | 'LOSS' = hitTP ? 'WIN' : 'LOSS';
           const label   = hitTP ? 'Take Profit' : 'Stop Loss';
           const emoji   = hitTP ? '🎯' : '🛑';
@@ -121,11 +127,20 @@ export function usePriceMonitor() {
           try {
             await useWatchlistStore.getState().autoResolveTrade(signal.signal_id, outcome);
             useSignalStore.getState().markSignalResolved(signal.signal_id, hitTP ? 'TP_HIT' : 'SL_HIT');
-            await sendLocalNotification(
-              `${emoji} ${label} Hit — ${pair}`,
-              `${signal.type} trade ${outcome === 'WIN' ? 'won' : 'lost'} · Entry ${signal.entry} → ${hitTP ? signal.take_profit : signal.stop_loss}`,
-              { screen: 'history', signalId: signal.signal_id }
+
+            // FIX #4: only notify if the watchlist entry was added after boot
+            // (i.e. the user actively added it this session, not a leftover)
+            const watchEntry = useWatchlistStore.getState().watchlist.find(
+              (w) => w.signal.signal_id === signal.signal_id
             );
+            const addedAt = (watchEntry as any)?.addedAt ?? 0;
+            if (addedAt >= bootTime || addedAt === 0) {
+              await sendLocalNotification(
+                `${emoji} ${label} Hit — ${pair}`,
+                `${signal.type} trade ${outcome === 'WIN' ? 'won' : 'lost'} · Entry ${signal.entry} → ${hitTP ? signal.take_profit : signal.stop_loss}`,
+                { screen: 'history', signalId: signal.signal_id }
+              );
+            }
           } finally {
             processingSignals.delete(signal.signal_id);
             resolvedSignals.add(signal.signal_id);
@@ -136,7 +151,7 @@ export function usePriceMonitor() {
       // ── 2. Check live signals ──────────────────────────────────────────
       for (const entry of signalEntries) {
         const { signal } = entry;
-        if (resolvedSignals.has(signal.signal_id)) continue;
+        if (resolvedSignals.has(signal.signal_id))   continue;
         if (processingSignals.has(signal.signal_id)) continue;
         if (useWatchlistStore.getState().isWatched(signal.signal_id)) continue;
 
@@ -149,7 +164,6 @@ export function usePriceMonitor() {
 
         if (hitTP || hitSL) {
           processingSignals.add(signal.signal_id);
-
           const label = hitTP ? 'Take Profit' : 'Stop Loss';
           const emoji = hitTP ? '🎯' : '🛑';
           const pair  = signal.pair.replace('USDT', '') + '/USDT';
@@ -158,11 +172,15 @@ export function usePriceMonitor() {
 
           try {
             useSignalStore.getState().markSignalResolved(signal.signal_id, hitTP ? 'TP_HIT' : 'SL_HIT');
-            await sendLocalNotification(
-              `${emoji} Signal ${label} Hit — ${pair}`,
-              `${signal.type} signal closed · Entry ${signal.entry} · ${label} @ ${hitTP ? signal.take_profit : signal.stop_loss}`,
-              { screen: 'signals' }
-            );
+
+            // FIX #4: only notify for signals that arrived after boot
+            if (entry.addedAt >= bootTime) {
+              await sendLocalNotification(
+                `${emoji} Signal ${label} Hit — ${pair}`,
+                `${signal.type} signal closed · Entry ${signal.entry} · ${label} @ ${hitTP ? signal.take_profit : signal.stop_loss}`,
+                { screen: 'signals' }
+              );
+            }
           } finally {
             processingSignals.delete(signal.signal_id);
             resolvedSignals.add(signal.signal_id);
@@ -174,21 +192,8 @@ export function usePriceMonitor() {
     const safeCheck = async () => {
       if (isRunningRef.current) return;
       isRunningRef.current = true;
-      try {
-        await check();
-      } finally {
-        isRunningRef.current = false;
-      }
+      try { await check(); } finally { isRunningRef.current = false; }
     };
-
-    // FIX: Seed resolvedSignals from the store on mount so already-resolved
-    // signals don't fire again after a hot reload / app restart.
-    const allSignals = useSignalStore.getState().signals;
-    for (const s of allSignals) {
-      if (s.status !== 'ACTIVE') {
-        resolvedSignals.add(s.signal.signal_id);
-      }
-    }
 
     safeCheck();
     intervalRef.current = setInterval(safeCheck, PRICE_POLL_INTERVAL_MS);

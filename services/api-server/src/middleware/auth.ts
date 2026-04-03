@@ -1,3 +1,4 @@
+// FILE: services/api-server/src/middleware/auth.ts
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 

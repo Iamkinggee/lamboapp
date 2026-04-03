@@ -70,12 +70,19 @@ class WebSocketService {
 
     const token = await getToken();
     if (!token) {
-      // FIX: If we have no token, schedule a retry instead of giving up.
-      // This handles cold-start race where Supabase hasn't restored the session yet.
       console.warn('[WS] No token yet — will retry in 3s');
       this.connecting = false;
       this.reconnectTimer = setTimeout(() => this._connect(), 3000);
       return;
+    }
+
+    // DIAGNOSTIC: log the token header so we can verify algorithm on the server
+    try {
+      const header = JSON.parse(atob(token.split('.')[0]));
+      console.log('[WS] Token alg:', header.alg, '| typ:', header.typ);
+      console.log('[WS] Token preview:', token.slice(0, 40) + '...');
+    } catch {
+      console.warn('[WS] Could not decode token header');
     }
 
     try {

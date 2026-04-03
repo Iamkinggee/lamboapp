@@ -1,233 +1,264 @@
-<!-- FILE: apps/web-admin/index.html -->
+<!-- LOCATION: apps/web-admin/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SMC Trading — Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>LamboApp — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
-  :root {
-    --bg:       #04040f;
-    --surface:  #0c0c20;
-    --border:   #1a1a3a;
-    --accent:   #00d4ff;
-    --purple:   #7b2fbe;
-    --green:    #00c896;
-    --red:      #ff4757;
-    --gold:     #ffd700;
-    --text:     #e8eaf0;
-    --muted:    #5a6080;
-    --glow:     0 0 20px rgba(0,212,255,.25);
-  }
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow-x:hidden;}
+:root{
+  --bg:#04040f;--surface:#0c0c20;--surface2:#10102a;
+  --border:#1a1a3a;--accent:#00d4ff;--purple:#7b2fbe;
+  --green:#00c896;--red:#ff4757;--gold:#ffd700;
+  --text:#e8eaf0;--muted:#5a6080;
+  --glow:0 0 20px rgba(0,212,255,.25);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow-x:hidden;}
 
-  /* SIDEBAR */
-  .sidebar{width:240px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0;position:fixed;top:0;left:0;z-index:100;}
-  .logo{padding:28px 24px 24px;border-bottom:1px solid var(--border);}
-  .logo-text{font-size:18px;font-weight:800;letter-spacing:-0.5px;}
-  .logo-text span{color:var(--accent);}
-  .logo-sub{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:4px;letter-spacing:2px;}
-  .status-dot{display:inline-block;width:7px;height:7px;background:var(--green);border-radius:50%;margin-right:6px;box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  nav{flex:1;padding:16px 0;}
-  .nav-section{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:2px;padding:16px 24px 8px;text-transform:uppercase;}
-  .nav-item{display:flex;align-items:center;gap:12px;padding:10px 24px;cursor:pointer;border-left:2px solid transparent;transition:all .2s;font-size:14px;font-weight:600;color:var(--muted);}
-  .nav-item:hover,.nav-item.active{color:var(--text);background:rgba(0,212,255,.05);border-left-color:var(--accent);}
-  .nav-item.active{color:var(--accent);}
-  .nav-icon{font-size:16px;width:20px;text-align:center;}
-  .nav-badge{margin-left:auto;background:var(--accent);color:#000;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;font-family:'Space Mono',monospace;}
-  .sidebar-footer{padding:16px 24px;border-top:1px solid var(--border);font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);}
+/* ── SIDEBAR ── */
+.sidebar{width:240px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;}
+.logo{padding:28px 24px 24px;border-bottom:1px solid var(--border);}
+.logo-text{font-size:18px;font-weight:800;letter-spacing:-.5px;}
+.logo-text span{color:var(--accent);}
+.logo-sub{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:4px;letter-spacing:2px;display:flex;align-items:center;gap:6px;}
+.status-dot{display:inline-block;width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;flex-shrink:0;}
+.status-dot.off{background:var(--red);box-shadow:0 0 8px var(--red);animation:none;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+nav{flex:1;padding:16px 0;overflow-y:auto;}
+.nav-section{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:2px;padding:16px 24px 8px;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 24px;cursor:pointer;border-left:2px solid transparent;transition:all .2s;font-size:14px;font-weight:600;color:var(--muted);}
+.nav-item:hover,.nav-item.active{color:var(--text);background:rgba(0,212,255,.05);border-left-color:var(--accent);}
+.nav-item.active{color:var(--accent);}
+.nav-icon{font-size:16px;width:20px;text-align:center;}
+.nav-badge{margin-left:auto;background:var(--accent);color:#000;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;font-family:'Space Mono',monospace;}
+.sidebar-footer{padding:16px 24px;border-top:1px solid var(--border);font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);}
 
-  /* MAIN */
-  .main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
-  .topbar{height:64px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px;position:sticky;top:0;background:rgba(4,4,15,.9);backdrop-filter:blur(10px);z-index:50;}
-  .page-title{font-size:20px;font-weight:800;letter-spacing:-0.5px;}
-  .topbar-right{display:flex;align-items:center;gap:16px;}
-  .topbar-time{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);}
-  .refresh-btn{background:var(--border);border:1px solid var(--border);color:var(--accent);padding:8px 16px;border-radius:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:12px;transition:all .2s;}
-  .refresh-btn:hover{background:rgba(0,212,255,.1);border-color:var(--accent);}
-  .content{padding:32px;flex:1;}
+/* ── MAIN ── */
+.main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
+.topbar{height:64px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px;position:sticky;top:0;background:rgba(4,4,15,.95);backdrop-filter:blur(12px);z-index:50;}
+.page-title{font-size:20px;font-weight:800;letter-spacing:-.5px;}
+.topbar-right{display:flex;align-items:center;gap:16px;}
+.topbar-time{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);}
+.ws-pill{display:flex;align-items:center;gap:6px;font-family:'Space Mono',monospace;font-size:11px;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);}
+.ws-pill.connected{color:var(--green);border-color:rgba(0,200,150,.3);}
+.ws-pill.connecting{color:var(--gold);border-color:rgba(255,215,0,.3);}
+.ws-pill.error{color:var(--red);border-color:rgba(255,71,87,.3);}
+.refresh-btn{background:var(--border);border:1px solid var(--border);color:var(--accent);padding:8px 16px;border-radius:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:12px;transition:all .2s;}
+.refresh-btn:hover{background:rgba(0,212,255,.1);border-color:var(--accent);}
+.content{padding:32px;flex:1;}
 
-  /* PAGES */
-  .page{display:none;}
-  .page.active{display:block;}
+/* ── PAGES ── */
+.page{display:none;}
+.page.active{display:block;}
 
-  /* STAT CARDS */
-  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px;}
-  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;position:relative;overflow:hidden;transition:border-color .2s;}
-  .stat-card:hover{border-color:var(--accent);}
-  .stat-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,212,255,.03),transparent);pointer-events:none;}
-  .stat-label{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
-  .stat-value{font-size:32px;font-weight:800;letter-spacing:-1px;line-height:1;}
-  .stat-value.green{color:var(--green);}
-  .stat-value.red{color:var(--red);}
-  .stat-value.blue{color:var(--accent);}
-  .stat-value.gold{color:var(--gold);}
-  .stat-change{font-size:12px;font-family:'Space Mono',monospace;margin-top:8px;}
-  .stat-change.up{color:var(--green);}
-  .stat-change.down{color:var(--red);}
+/* ── STAT CARDS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+.stats-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;position:relative;overflow:hidden;transition:border-color .2s;}
+.stat-card:hover{border-color:var(--accent);}
+.stat-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,212,255,.03),transparent);pointer-events:none;}
+.stat-label{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+.stat-value{font-size:32px;font-weight:800;letter-spacing:-1px;line-height:1;}
+.stat-value.green{color:var(--green);}
+.stat-value.red{color:var(--red);}
+.stat-value.blue{color:var(--accent);}
+.stat-value.gold{color:var(--gold);}
+.stat-value.sm{font-size:20px;margin-top:4px;}
+.stat-change{font-size:12px;font-family:'Space Mono',monospace;margin-top:8px;color:var(--muted);}
+.stat-change.up{color:var(--green);}
+.stat-change.down{color:var(--red);}
 
-  /* TABLES */
-  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:24px;overflow:hidden;}
-  .section-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border);}
-  .section-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;}
-  .section-badge{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);background:var(--border);padding:3px 8px;border-radius:4px;}
-  table{width:100%;border-collapse:collapse;}
-  th{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:12px 24px;text-align:left;border-bottom:1px solid var(--border);}
-  td{padding:14px 24px;font-size:13px;border-bottom:1px solid rgba(26,26,58,.5);}
-  tr:last-child td{border-bottom:none;}
-  tr:hover td{background:rgba(0,212,255,.02);}
-  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;font-family:'Space Mono',monospace;}
-  .badge.buy{background:rgba(0,200,150,.15);color:var(--green);border:1px solid rgba(0,200,150,.3);}
-  .badge.sell{background:rgba(255,71,87,.15);color:var(--red);border:1px solid rgba(255,71,87,.3);}
-  .badge.high{background:rgba(0,212,255,.15);color:var(--accent);border:1px solid rgba(0,212,255,.3);}
-  .badge.med{background:rgba(255,215,0,.15);color:var(--gold);border:1px solid rgba(255,215,0,.3);}
-  .badge.online{background:rgba(0,200,150,.15);color:var(--green);}
-  .badge.offline{background:rgba(255,71,87,.15);color:var(--red);}
-  .badge.warn{background:rgba(255,215,0,.15);color:var(--gold);}
+/* ── TABLES ── */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:24px;overflow:hidden;}
+.section-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border);}
+.section-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;}
+.section-badge{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);background:var(--border);padding:3px 8px;border-radius:4px;}
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:12px 24px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:14px 24px;font-size:13px;border-bottom:1px solid rgba(26,26,58,.5);white-space:nowrap;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(0,212,255,.02);}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;font-family:'Space Mono',monospace;}
+.badge.buy{background:rgba(0,200,150,.15);color:var(--green);border:1px solid rgba(0,200,150,.3);}
+.badge.sell{background:rgba(255,71,87,.15);color:var(--red);border:1px solid rgba(255,71,87,.3);}
+.badge.high{background:rgba(0,212,255,.15);color:var(--accent);border:1px solid rgba(0,212,255,.3);}
+.badge.med{background:rgba(255,215,0,.15);color:var(--gold);border:1px solid rgba(255,215,0,.3);}
+.badge.ok,.badge.online{background:rgba(0,200,150,.15);color:var(--green);}
+.badge.offline{background:rgba(255,71,87,.15);color:var(--red);}
+.badge.warn{background:rgba(255,215,0,.15);color:var(--gold);}
+.badge.neutral{background:rgba(90,96,128,.2);color:var(--muted);}
 
-  /* CONFIDENCE BAR */
-  .conf-bar{height:4px;background:var(--border);border-radius:2px;width:80px;display:inline-block;vertical-align:middle;margin-right:8px;}
-  .conf-fill{height:100%;border-radius:2px;}
+/* ── CONFIDENCE BAR ── */
+.conf-bar{height:4px;background:var(--border);border-radius:2px;width:80px;display:inline-block;vertical-align:middle;margin-right:8px;}
+.conf-fill{height:100%;border-radius:2px;}
 
-  /* CHART PLACEHOLDER */
-  .chart-area{padding:24px;height:200px;display:flex;align-items:flex-end;gap:4px;}
-  .bar-col{flex:1;border-radius:3px 3px 0 0;transition:opacity .2s;cursor:pointer;}
-  .bar-col:hover{opacity:.7;}
+/* ── CHART BARS ── */
+.chart-area{padding:24px;height:180px;display:flex;align-items:flex-end;gap:3px;}
+.bar-col{flex:1;border-radius:3px 3px 0 0;transition:opacity .2s;cursor:pointer;min-width:4px;}
+.bar-col:hover{opacity:.7;}
 
-  /* GRID 2 COL */
-  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;}
-  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px;}
+/* ── GRID ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px;}
 
-  /* ENGINE CONTROLS */
-  .control-row{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);}
-  .control-row:last-child{border-bottom:none;}
-  .control-label{font-size:13px;font-weight:600;}
-  .control-sub{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:2px;}
-  .toggle{width:44px;height:24px;background:var(--border);border-radius:12px;position:relative;cursor:pointer;transition:background .2s;}
-  .toggle.on{background:var(--green);}
-  .toggle::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .2s;}
-  .toggle.on::after{transform:translateX(20px);}
-  .slider-wrap{display:flex;align-items:center;gap:12px;}
-  .slider{-webkit-appearance:none;width:120px;height:4px;border-radius:2px;background:var(--border);outline:none;}
-  .slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;}
-  .slider-val{font-family:'Space Mono',monospace;font-size:12px;color:var(--accent);width:36px;}
+/* ── ENGINE CONTROLS ── */
+.control-row{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);}
+.control-row:last-child{border-bottom:none;}
+.control-label{font-size:13px;font-weight:600;}
+.control-sub{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:2px;}
+.toggle{width:44px;height:24px;background:var(--border);border-radius:12px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+.toggle.on{background:var(--green);}
+.toggle::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .2s;}
+.toggle.on::after{transform:translateX(20px);}
+.slider-wrap{display:flex;align-items:center;gap:12px;}
+.slider{-webkit-appearance:none;width:120px;height:4px;border-radius:2px;background:var(--border);outline:none;}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;}
+.slider-val{font-family:'Space Mono',monospace;font-size:12px;color:var(--accent);min-width:40px;text-align:right;}
 
-  /* USER TABLE */
-  .avatar{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--purple),var(--accent));display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:8px;vertical-align:middle;}
+/* ── PAIR LIST ── */
+.pair-item{display:flex;align-items:center;justify-content:space-between;padding:10px 24px;border-bottom:1px solid rgba(26,26,58,.5);}
+.pair-item:last-child{border-bottom:none;}
+.pair-name{font-weight:700;font-size:13px;}
+.pair-price{font-family:'Space Mono',monospace;font-size:12px;}
+.pair-change{font-family:'Space Mono',monospace;font-size:11px;text-align:right;}
 
-  /* ALERT LOG */
-  .alert-item{display:flex;align-items:flex-start;gap:12px;padding:14px 24px;border-bottom:1px solid rgba(26,26,58,.5);}
-  .alert-item:last-child{border-bottom:none;}
-  .alert-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;}
-  .alert-dot.err{background:var(--red);box-shadow:0 0 6px var(--red);}
-  .alert-dot.warn{background:var(--gold);}
-  .alert-dot.info{background:var(--accent);}
-  .alert-dot.ok{background:var(--green);}
-  .alert-msg{font-size:13px;line-height:1.4;}
-  .alert-time{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:3px;}
+/* ── MINI METRICS ── */
+.mini-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:20px 24px;}
+.mini-m{text-align:center;}
+.mini-m .val{font-size:22px;font-weight:800;letter-spacing:-.5px;}
+.mini-m .lbl{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:3px;}
 
-  /* MODAL */
-  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;}
-  .modal-bg.open{display:flex;}
-  .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:500px;max-width:90vw;padding:32px;}
-  .modal-title{font-size:18px;font-weight:800;margin-bottom:24px;}
-  .form-row{margin-bottom:16px;}
-  .form-label{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:1px;margin-bottom:6px;display:block;}
-  .form-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;outline:none;transition:border-color .2s;}
-  .form-input:focus{border-color:var(--accent);}
-  .form-row select.form-input{cursor:pointer;}
-  .modal-actions{display:flex;gap:12px;margin-top:24px;}
-  .btn{padding:10px 20px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;border:none;transition:all .2s;}
-  .btn-primary{background:var(--accent);color:#000;}
-  .btn-primary:hover{box-shadow:var(--glow);}
-  .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
-  .btn-ghost:hover{color:var(--text);border-color:var(--text);}
-  .btn-danger{background:rgba(255,71,87,.15);color:var(--red);border:1px solid rgba(255,71,87,.3);}
+/* ── ALERT LOG ── */
+.alert-item{display:flex;align-items:flex-start;gap:12px;padding:14px 24px;border-bottom:1px solid rgba(26,26,58,.5);}
+.alert-item:last-child{border-bottom:none;}
+.alert-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+.alert-dot.err{background:var(--red);box-shadow:0 0 6px var(--red);}
+.alert-dot.warn{background:var(--gold);}
+.alert-dot.info{background:var(--accent);}
+.alert-dot.ok{background:var(--green);}
+.alert-msg{font-size:13px;line-height:1.4;}
+.alert-time{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:3px;}
 
-  /* SCROLLBAR */
-  ::-webkit-scrollbar{width:4px;}
-  ::-webkit-scrollbar-track{background:var(--bg);}
-  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+/* ── MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:520px;max-width:92vw;padding:32px;max-height:88vh;overflow-y:auto;}
+.modal-title{font-size:18px;font-weight:800;margin-bottom:24px;}
 
-  /* WEBSOCKET INDICATOR */
-  .ws-status{display:flex;align-items:center;gap:6px;font-family:'Space Mono',monospace;font-size:11px;color:var(--green);}
+/* ── FORMS ── */
+.form-row{margin-bottom:16px;}
+.form-label{font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);letter-spacing:1px;margin-bottom:6px;display:block;}
+.form-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;outline:none;transition:border-color .2s;}
+.form-input:focus{border-color:var(--accent);}
+select.form-input{cursor:pointer;}
+.modal-actions{display:flex;gap:12px;margin-top:24px;}
 
-  /* MINI METRIC */
-  .mini-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 24px;}
-  .mini-m{text-align:center;}
-  .mini-m .val{font-size:22px;font-weight:800;letter-spacing:-0.5px;}
-  .mini-m .lbl{font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:2px;}
+/* ── BUTTONS ── */
+.btn{padding:10px 20px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;border:none;transition:all .2s;}
+.btn-primary{background:var(--accent);color:#000;}
+.btn-primary:hover{box-shadow:var(--glow);}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{color:var(--text);border-color:var(--text);}
+.btn-danger{background:rgba(255,71,87,.15);color:var(--red);border:1px solid rgba(255,71,87,.3);}
+.btn-danger:hover{background:rgba(255,71,87,.25);}
+.btn-sm{padding:5px 12px;font-size:11px;}
 
-  /* PAIR WATCHLIST */
-  .pair-item{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid rgba(26,26,58,.5);}
-  .pair-item:last-child{border-bottom:none;}
-  .pair-name{font-weight:700;font-size:14px;}
-  .pair-price{font-family:'Space Mono',monospace;font-size:13px;}
-  .pair-change{font-family:'Space Mono',monospace;font-size:12px;}
+/* ── TOAST ── */
+.toast-wrap{position:fixed;top:80px;right:24px;z-index:300;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:13px;min-width:280px;transform:translateX(120%);transition:transform .3s;display:flex;align-items:center;gap:10px;pointer-events:auto;}
+.toast.show{transform:translateX(0);}
+.toast.success{border-color:var(--green);}
+.toast.error{border-color:var(--red);}
+.toast.info{border-color:var(--accent);}
 
-  /* NOTIFICATION TOAST */
-  .toast-wrap{position:fixed;top:80px;right:24px;z-index:300;display:flex;flex-direction:column;gap:8px;}
-  .toast{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:13px;min-width:280px;transform:translateX(120%);transition:transform .3s;display:flex;align-items:center;gap:10px;}
-  .toast.show{transform:translateX(0);}
-  .toast.success{border-color:var(--green);}
-  .toast.error{border-color:var(--red);}
+/* ── LOGIN SCREEN ── */
+.login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500;}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:400px;max-width:92vw;}
+.login-title{font-size:24px;font-weight:800;margin-bottom:6px;}
+.login-sub{font-size:13px;color:var(--muted);margin-bottom:32px;}
+.login-error{color:var(--red);font-size:12px;font-family:'Space Mono',monospace;margin-top:12px;display:none;}
+
+/* ── EMPTY STATE ── */
+.empty-state{padding:60px 24px;text-align:center;color:var(--muted);}
+.empty-state .icon{font-size:40px;margin-bottom:16px;}
+.empty-state p{font-size:14px;line-height:22px;}
+
+/* ── LOADING ── */
+.loading-row td{text-align:center;padding:32px;color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-right:8px;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* ── AVATAR ── */
+.avatar{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--purple),var(--accent));display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:8px;vertical-align:middle;flex-shrink:0;}
+
+/* ── SIGNAL DETAIL ── */
+.detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:20px 24px;border-bottom:1px solid var(--border);}
+.detail-cell{text-align:center;}
+.detail-cell .val{font-size:18px;font-weight:800;font-family:'Space Mono',monospace;}
+.detail-cell .lbl{font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:3px;}
 </style>
 </head>
 <body>
 
-<!-- SIDEBAR -->
-<aside class="sidebar">
+<!-- ── LOGIN ── -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-title">Lambo<span style="color:var(--accent)">Admin</span></div>
+    <div class="login-sub">SMC Trading — Admin Dashboard</div>
+    <div class="form-row">
+      <label class="form-label">API URL</label>
+      <input class="form-input" id="login-url" value="http://13.40.3.171:3001" placeholder="http://your-server:3001"/>
+    </div>
+    <div class="form-row">
+      <label class="form-label">ADMIN SECRET KEY</label>
+      <input class="form-input" id="login-key" type="password" placeholder="your-admin-secret"/>
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Connect →</button>
+    <div class="login-error" id="login-err">❌ Connection failed — check URL and key</div>
+  </div>
+</div>
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar" style="display:none" id="sidebar">
   <div class="logo">
-    <div class="logo-text">SMC<span>Admin</span></div>
-    <div class="logo-sub"><span class="status-dot"></span>LIVE SYSTEM</div>
+    <div class="logo-text">Lambo<span>Admin</span></div>
+    <div class="logo-sub"><span class="status-dot" id="api-dot"></span><span id="api-status">CONNECTING...</span></div>
   </div>
   <nav>
     <div class="nav-section">Overview</div>
-    <div class="nav-item active" onclick="showPage('dashboard',this)">
-      <span class="nav-icon">⬛</span> Dashboard
-    </div>
-    <div class="nav-item" onclick="showPage('signals',this)">
-      <span class="nav-icon">⚡</span> Live Signals
-      <span class="nav-badge" id="sig-badge">0</span>
-    </div>
+    <div class="nav-item active" onclick="nav('dashboard',this)"><span class="nav-icon">⬛</span>Dashboard</div>
+    <div class="nav-item" onclick="nav('signals',this)"><span class="nav-icon">⚡</span>Live Signals<span class="nav-badge" id="sig-badge">0</span></div>
+    <div class="nav-section">Management</div>
+    <div class="nav-item" onclick="nav('users',this)"><span class="nav-icon">👥</span>Users</div>
+    <div class="nav-item" onclick="nav('trades',this)"><span class="nav-icon">📈</span>Trades</div>
     <div class="nav-section">System</div>
-    <div class="nav-item" onclick="showPage('engine',this)">
-      <span class="nav-icon">⚙️</span> Signal Engine
-    </div>
-    <div class="nav-item" onclick="showPage('users',this)">
-      <span class="nav-icon">👥</span> Users
-    </div>
-    <div class="nav-item" onclick="showPage('ai',this)">
-      <span class="nav-icon">🤖</span> AI Mentor
-    </div>
-    <div class="nav-section">Ops</div>
-    <div class="nav-item" onclick="showPage('infra',this)">
-      <span class="nav-icon">☁️</span> Infrastructure
-    </div>
-    <div class="nav-item" onclick="showPage('logs',this)">
-      <span class="nav-icon">📋</span> Alert Logs
-    </div>
-    <div class="nav-item" onclick="showPage('settings',this)">
-      <span class="nav-icon">🔧</span> Settings
-    </div>
+    <div class="nav-item" onclick="nav('engine',this)"><span class="nav-icon">⚙️</span>Signal Engine</div>
+    <div class="nav-item" onclick="nav('logs',this)"><span class="nav-icon">📋</span>Activity Logs</div>
+    <div class="nav-item" onclick="nav('infra',this)"><span class="nav-icon">☁️</span>Infrastructure</div>
   </nav>
-  <div class="sidebar-footer">v1.0 · 2025<br>LAMBOAPP ENGINE</div>
+  <div class="sidebar-footer">LamboApp Engine v1.0<br>© 2025</div>
 </aside>
 
-<!-- TOAST -->
+<!-- ── TOAST ── -->
 <div class="toast-wrap" id="toastWrap"></div>
 
-<!-- MAIN -->
-<main class="main">
+<!-- ── MAIN ── -->
+<main class="main" style="display:none" id="main-app">
   <header class="topbar">
     <div class="page-title" id="page-title">Dashboard</div>
     <div class="topbar-right">
-      <div class="ws-status"><span class="status-dot"></span> WS CONNECTED</div>
+      <div class="ws-pill connecting" id="ws-pill"><span class="status-dot" id="ws-dot"></span><span id="ws-label">CONNECTING</span></div>
       <div class="topbar-time" id="clock">--:--:--</div>
-      <button class="refresh-btn" onclick="refreshData()">↺ REFRESH</button>
+      <button class="refresh-btn" onclick="refreshCurrent()">↺ REFRESH</button>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Sign Out</button>
     </div>
   </header>
 
@@ -237,184 +268,85 @@
     <div class="page active" id="page-dashboard">
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-label">Total Signals Today</div>
-          <div class="stat-value blue" id="d-total">0</div>
-          <div class="stat-change up" id="d-total-ch">Loading...</div>
+          <div class="stat-label">Today's Signals</div>
+          <div class="stat-value blue" id="d-today">—</div>
+          <div class="stat-change" id="d-total-lbl">Total: — all time</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">High Confidence (≥80%)</div>
-          <div class="stat-value green" id="d-high">0</div>
-          <div class="stat-change up">≥80% threshold</div>
+          <div class="stat-label">High Confidence ≥80%</div>
+          <div class="stat-value green" id="d-high">—</div>
+          <div class="stat-change up">Today only</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Active Users</div>
-          <div class="stat-value gold" id="d-users">0</div>
-          <div class="stat-change up" id="d-users-ch">Online now</div>
+          <div class="stat-label">Registered Users</div>
+          <div class="stat-value gold" id="d-users">—</div>
+          <div class="stat-change" id="d-wr">Win rate: —%</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Avg Confidence Score</div>
-          <div class="stat-value" id="d-avg">0%</div>
-          <div class="stat-change" id="d-avg-ch">All signals</div>
+          <div class="stat-label">Avg Confidence</div>
+          <div class="stat-value" id="d-avg">—</div>
+          <div class="stat-change" id="d-avg-lbl">All signals today</div>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="section">
           <div class="section-header">
-            <div class="section-title">📊 Signals Per Hour <span class="section-badge">24H</span></div>
+            <div class="section-title">📊 Signals Per Hour <span class="section-badge">24H UTC</span></div>
           </div>
-          <div class="chart-area" id="hourly-chart"></div>
+          <div class="chart-area" id="hourly-chart"><div class="empty-state"><p>Loading chart...</p></div></div>
         </div>
         <div class="section">
           <div class="section-header">
             <div class="section-title">💹 Live Pairs <span class="section-badge">BINANCE</span></div>
           </div>
-          <div id="pair-list"></div>
+          <div id="pair-list" style="max-height:180px;overflow-y:auto;"></div>
         </div>
       </div>
 
       <div class="section">
         <div class="section-header">
           <div class="section-title">⚡ Recent Signals <span class="section-badge">LAST 10</span></div>
-          <button class="btn btn-ghost" onclick="showPage('signals',document.querySelector('[onclick*=signals]'))">View All →</button>
+          <button class="btn btn-ghost btn-sm" onclick="nav('signals',document.querySelectorAll('.nav-item')[1])">View All →</button>
         </div>
-        <table>
-          <thead><tr><th>Pair</th><th>Type</th><th>Confidence</th><th>Confluences</th><th>RR</th><th>Time</th></tr></thead>
-          <tbody id="dash-signals"></tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Pair</th><th>Type</th><th>Confidence</th><th>Entry</th><th>SL</th><th>TP</th><th>RR</th><th>Time</th></tr></thead>
+            <tbody id="dash-signals"><tr class="loading-row"><td colspan="8"><span class="spinner"></span>Loading...</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- ===== LIVE SIGNALS ===== -->
+    <!-- ===== SIGNALS ===== -->
     <div class="page" id="page-signals">
       <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">BUY Signals</div>
-          <div class="stat-value green" id="s-buy">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">SELL Signals</div>
-          <div class="stat-value red" id="s-sell">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Avg RR Ratio</div>
-          <div class="stat-value blue" id="s-rr">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Signals Published</div>
-          <div class="stat-value gold" id="s-pub">0</div>
-        </div>
+        <div class="stat-card"><div class="stat-label">BUY Signals</div><div class="stat-value green" id="s-buy">—</div></div>
+        <div class="stat-card"><div class="stat-label">SELL Signals</div><div class="stat-value red" id="s-sell">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Signals</div><div class="stat-value blue" id="s-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Confidence</div><div class="stat-value gold" id="s-avg">—</div></div>
       </div>
       <div class="section">
         <div class="section-header">
-          <div class="section-title">⚡ All Signals <span class="section-badge" id="s-count-badge">0 total</span></div>
+          <div class="section-title">⚡ All Signals <span class="section-badge" id="s-count-badge">Loading...</span></div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-ghost btn-sm" id="sf-all"  onclick="sigFilter('all')">ALL</button>
+            <button class="btn btn-ghost btn-sm" id="sf-buy"  onclick="sigFilter('BUY')">BUY</button>
+            <button class="btn btn-ghost btn-sm" id="sf-sell" onclick="sigFilter('SELL')">SELL</button>
+            <button class="btn btn-ghost btn-sm" id="sf-high" onclick="sigFilter('high')">≥80%</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Pair</th><th>Type</th><th>Entry</th><th>SL</th><th>TP</th><th>Confidence</th><th>RR</th><th>HTF Bias</th><th>Time</th><th>Action</th></tr></thead>
+            <tbody id="all-signals"><tr class="loading-row"><td colspan="11"><span class="spinner"></span>Loading...</td></tr></tbody>
+          </table>
+        </div>
+        <div style="padding:16px 24px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);">
+          <div style="font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;" id="s-pager">Page 1</div>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-ghost" onclick="filterSignals('all')" id="f-all" style="color:var(--accent)">ALL</button>
-            <button class="btn btn-ghost" onclick="filterSignals('BUY')" id="f-buy">BUY</button>
-            <button class="btn btn-ghost" onclick="filterSignals('SELL')" id="f-sell">SELL</button>
-          </div>
-        </div>
-        <table>
-          <thead><tr><th>Signal ID</th><th>Pair</th><th>Type</th><th>Entry</th><th>SL</th><th>TP</th><th>Confidence</th><th>RR</th><th>Status</th><th>Time</th></tr></thead>
-          <tbody id="all-signals"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- ===== ENGINE ===== -->
-    <div class="page" id="page-engine">
-      <div class="grid-3">
-        <div class="stat-card">
-          <div class="stat-label">Engine Status</div>
-          <div class="stat-value green" style="font-size:18px;margin-top:4px;">● RUNNING</div>
-          <div class="stat-change up">Python 3.11 · SMC v1</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Redis Pub/Sub</div>
-          <div class="stat-value green" style="font-size:18px;margin-top:4px;">● CONNECTED</div>
-          <div class="stat-change up">Upstash · Free Tier</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">WS Streams</div>
-          <div class="stat-value blue" style="font-size:24px;margin-top:4px;" id="e-streams">6</div>
-          <div class="stat-change">Active pair streams</div>
-        </div>
-      </div>
-
-      <div class="grid-2">
-        <div class="section">
-          <div class="section-header">
-            <div class="section-title">⚙️ Engine Config</div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Signal Engine</div><div class="control-sub">Main SMC processing loop</div></div>
-            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Intra-Candle Processing</div><div class="control-sub">Early signals (more noise)</div></div>
-            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">HTF Bias Filter</div><div class="control-sub">Only trade with 1H/4H bias</div></div>
-            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Confidence Threshold</div><div class="control-sub">Minimum score to publish</div></div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="50" max="90" value="65" id="conf-slider" oninput="document.getElementById('conf-val').textContent=this.value+'%'">
-              <span class="slider-val" id="conf-val">65%</span>
-            </div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Min Risk/Reward</div><div class="control-sub">Discard signals below RR</div></div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="1" max="5" step="0.5" value="2" id="rr-slider" oninput="document.getElementById('rr-val').textContent='1:'+this.value">
-              <span class="slider-val" id="rr-val">1:2</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-header">
-            <div class="section-title">⚖️ Confluence Weights</div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Liquidity Sweep</div><div class="control-sub">Current: 30%</div></div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="0" max="50" value="30" oninput="this.previousElementSibling.lastElementChild.textContent='Current: '+this.value+'%'">
-              <span class="slider-val">30%</span>
-            </div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Order Block Tap</div><div class="control-sub">Current: 25%</div></div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="0" max="50" value="25" oninput="this.previousElementSibling.lastElementChild.textContent='Current: '+this.value+'%'">
-              <span class="slider-val">25%</span>
-            </div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">BOS / CHOCH</div><div class="control-sub">Current: 20%</div></div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="0" max="50" value="20" oninput="this.previousElementSibling.lastElementChild.textContent='Current: '+this.value+'%'">
-              <span class="slider-val">20%</span>
-            </div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Fair Value Gap</div><div class="control-sub">Current: 15%</div></div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="0" max="50" value="15" oninput="this.previousElementSibling.lastElementChild.textContent='Current: '+this.value+'%'">
-              <span class="slider-val">15%</span>
-            </div>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">HTF Bias Aligned</div><div class="control-sub">Current: 10%</div></div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="0" max="30" value="10" oninput="this.previousElementSibling.lastElementChild.textContent='Current: '+this.value+'%'">
-              <span class="slider-val">10%</span>
-            </div>
-          </div>
-          <div style="padding:16px 24px;">
-            <button class="btn btn-primary" onclick="toast('Engine config saved!','success')">Save Config →</button>
+            <button class="btn btn-ghost btn-sm" id="s-prev" onclick="sigPage(-1)">← Prev</button>
+            <button class="btn btn-ghost btn-sm" id="s-next" onclick="sigPage(1)">Next →</button>
           </div>
         </div>
       </div>
@@ -423,113 +355,82 @@
     <!-- ===== USERS ===== -->
     <div class="page" id="page-users">
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value blue" id="u-total">0</div></div>
-        <div class="stat-card"><div class="stat-label">Online Now</div><div class="stat-value green" id="u-online">0</div></div>
-        <div class="stat-card"><div class="stat-label">Beginners</div><div class="stat-value" id="u-beg">0</div></div>
-        <div class="stat-card"><div class="stat-label">Advanced</div><div class="stat-value gold" id="u-adv">0</div></div>
+        <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value blue" id="u-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Win Rate</div><div class="stat-value green" id="u-winrate">—</div></div>
+        <div class="stat-card"><div class="stat-label">Notify: High Conf</div><div class="stat-value gold" id="u-notify">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Min Conf Pref</div><div class="stat-value" id="u-avgpref">—</div></div>
       </div>
       <div class="section">
         <div class="section-header">
-          <div class="section-title">👥 User Management</div>
-          <button class="btn btn-primary" onclick="document.getElementById('user-modal').classList.add('open')">+ Add User</button>
+          <div class="section-title">👥 Users <span class="section-badge" id="u-count-badge">Loading...</span></div>
         </div>
-        <table>
-          <thead><tr><th>User</th><th>Email</th><th>Skill Level</th><th>Signals Received</th><th>Win Rate</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
-          <tbody id="user-table"></tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>User ID</th><th>Min Confidence</th><th>Notify High</th><th>Notify All</th><th>Watched Pairs</th><th>Trades</th><th>Win Rate</th><th>Default RR</th></tr></thead>
+            <tbody id="user-table"><tr class="loading-row"><td colspan="8"><span class="spinner"></span>Loading...</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- ===== AI MENTOR ===== -->
-    <div class="page" id="page-ai">
+    <!-- ===== TRADES ===== -->
+    <div class="page" id="page-trades">
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total AI Queries</div><div class="stat-value blue" id="ai-q">0</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Response Time</div><div class="stat-value green" id="ai-rt">--ms</div></div>
-        <div class="stat-card"><div class="stat-label">Primary Provider</div><div class="stat-value" style="font-size:18px;margin-top:4px;">Groq</div><div class="stat-change up">Llama 3 70B</div></div>
-        <div class="stat-card"><div class="stat-label">Fallback Provider</div><div class="stat-value" style="font-size:18px;margin-top:4px;">Claude</div><div class="stat-change">Haiku · Low cost</div></div>
+        <div class="stat-card"><div class="stat-label">Total Trades</div><div class="stat-value blue" id="tr-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Wins</div><div class="stat-value green" id="tr-wins">—</div></div>
+        <div class="stat-card"><div class="stat-label">Losses</div><div class="stat-value red" id="tr-losses">—</div></div>
+        <div class="stat-card"><div class="stat-label">Platform Win Rate</div><div class="stat-value gold" id="tr-wr">—</div></div>
       </div>
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">📈 All Trades <span class="section-badge" id="tr-count-badge">Loading...</span></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>User</th><th>Pair</th><th>Type</th><th>Entry</th><th>SL</th><th>TP</th><th>RR</th><th>Outcome</th><th>Date</th></tr></thead>
+            <tbody id="trade-table"><tr class="loading-row"><td colspan="9"><span class="spinner"></span>Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ENGINE ===== -->
+    <div class="page" id="page-engine">
+      <div class="stats-grid-3">
+        <div class="stat-card">
+          <div class="stat-label">Engine Status</div>
+          <div class="stat-value green sm" id="eng-status">● CHECKING...</div>
+          <div class="stat-change up">Python SMC v1</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Pair Streams</div>
+          <div class="stat-value blue" id="eng-pairs">—</div>
+          <div class="stat-change">Binance WebSocket</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Signals (Last 1h)</div>
+          <div class="stat-value gold" id="eng-recent">—</div>
+          <div class="stat-change">From Supabase</div>
+        </div>
+      </div>
+
       <div class="grid-2">
         <div class="section">
-          <div class="section-header"><div class="section-title">🤖 Provider Status</div></div>
-          <div class="control-row">
-            <div><div class="control-label">Groq (Primary)</div><div class="control-sub">~200ms · Free daily quota</div></div>
-            <span class="badge online">● ACTIVE</span>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Claude Haiku (Fallback)</div><div class="control-sub">~800ms · $0.0025/1K tokens</div></div>
-            <span class="badge warn">● STANDBY</span>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">OpenRouter (Tertiary)</div><div class="control-sub">Free models · Last resort</div></div>
-            <span class="badge offline">● DISABLED</span>
-          </div>
-          <div class="control-row">
-            <div><div class="control-label">Auto-Fallback</div><div class="control-sub">Switch on quota exhaust</div></div>
-            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-header"><div class="section-title">📊 Query Stats</div></div>
-          <div class="mini-metrics">
-            <div class="mini-m"><div class="val blue" id="ai-today">0</div><div class="lbl">Today</div></div>
-            <div class="mini-m"><div class="val green" id="ai-week">0</div><div class="lbl">This Week</div></div>
-            <div class="mini-m"><div class="val gold" id="ai-total2">0</div><div class="lbl">Total</div></div>
-          </div>
-          <div style="padding:0 24px 16px;">
-            <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:8px;">QUERY TYPES</div>
-            <div style="display:flex;flex-direction:column;gap:8px;">
-              <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Signal Explanations</span><span style="color:var(--accent)">45%</span></div>
-              <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Trade Reviews</span><span style="color:var(--green)">30%</span></div>
-              <div style="display:flex;justify-content:space-between;font-size:13px;"><span>General Mentor Chat</span><span style="color:var(--gold)">25%</span></div>
+          <div class="section-header"><div class="section-title">⚙️ Live Config</div></div>
+          <div id="eng-config-rows">
+            <div class="control-row"><div><div class="control-label">Confidence Threshold</div><div class="control-sub">Minimum score to publish a signal</div></div><div class="slider-wrap"><input type="range" class="slider" min="50" max="90" value="65" id="sl-conf" oninput="document.getElementById('vl-conf').textContent=this.value+'%'"><span class="slider-val" id="vl-conf">65%</span></div></div>
+            <div class="control-row"><div><div class="control-label">Min Risk / Reward</div><div class="control-sub">Discard signals below this RR</div></div><div class="slider-wrap"><input type="range" class="slider" min="1" max="5" step="0.5" value="2" id="sl-rr" oninput="document.getElementById('vl-rr').textContent='1:'+this.value"><span class="slider-val" id="vl-rr">1:2</span></div></div>
+            <div class="control-row"><div><div class="control-label">Signal Cooldown</div><div class="control-sub">Seconds between signals per pair</div></div><div class="slider-wrap"><input type="range" class="slider" min="30" max="300" step="30" value="60" id="sl-cd" oninput="document.getElementById('vl-cd').textContent=this.value+'s'"><span class="slider-val" id="vl-cd">60s</span></div></div>
+            <div style="padding:16px 24px;">
+              <button class="btn btn-primary" onclick="saveEngineConfig()">Save Config →</button>
+              <span style="margin-left:12px;font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;">Applied live; restart to persist</span>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- ===== INFRASTRUCTURE ===== -->
-    <div class="page" id="page-infra">
-      <div class="grid-3">
-        <div class="stat-card"><div class="stat-label">Cloud Provider</div><div class="stat-value" style="font-size:20px;margin-top:4px;">AWS Free</div><div class="stat-change up">EC2 t2.micro + Lambda</div></div>
-        <div class="stat-card"><div class="stat-label">Database</div><div class="stat-value" style="font-size:20px;margin-top:4px;">Supabase</div><div class="stat-change up">500MB free · RLS on</div></div>
-        <div class="stat-card"><div class="stat-label">Cache / PubSub</div><div class="stat-value" style="font-size:20px;margin-top:4px;">Upstash</div><div class="stat-change up">Redis · 10K cmd/day</div></div>
-      </div>
-      <div class="section">
-        <div class="section-header"><div class="section-title">☁️ AWS Services Status</div></div>
-        <table>
-          <thead><tr><th>Service</th><th>Type</th><th>Region</th><th>Free Tier</th><th>Status</th><th>Usage</th></tr></thead>
-          <tbody>
-            <tr><td><strong>EC2 t2.micro</strong></td><td>Signal Engine + API</td><td>us-east-1</td><td>750 hrs/month</td><td><span class="badge online">● RUNNING</span></td><td>Python + Node.js</td></tr>
-            <tr><td><strong>ECR</strong></td><td>Docker Registry</td><td>us-east-1</td><td>500MB free</td><td><span class="badge online">● ACTIVE</span></td><td>Docker images</td></tr>
-            <tr><td><strong>CloudWatch</strong></td><td>Monitoring + Logs</td><td>us-east-1</td><td>5GB logs free</td><td><span class="badge online">● ACTIVE</span></td><td>All services</td></tr>
-            <tr><td><strong>IAM</strong></td><td>Auth + Permissions</td><td>Global</td><td>Always free</td><td><span class="badge online">● ACTIVE</span></td><td>Roles + policies</td></tr>
-            <tr><td><strong>S3</strong></td><td>Static Admin Hosting</td><td>us-east-1</td><td>5GB free</td><td><span class="badge online">● ACTIVE</span></td><td>Web admin app</td></tr>
-            <tr><td><strong>CodePipeline</strong></td><td>CI/CD</td><td>us-east-1</td><td>1 pipeline free</td><td><span class="badge warn">● SETUP</span></td><td>GitHub → EC2</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="grid-2">
         <div class="section">
-          <div class="section-header"><div class="section-title">🐳 Docker Containers</div></div>
-          <table>
-            <thead><tr><th>Container</th><th>Image</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td><strong>signal-engine</strong></td><td>smc/engine:latest</td><td><span class="badge online">● UP</span></td></tr>
-              <tr><td><strong>api-server</strong></td><td>smc/api:latest</td><td><span class="badge online">● UP</span></td></tr>
-              <tr><td><strong>ai-assistant</strong></td><td>smc/ai:latest</td><td><span class="badge online">● UP</span></td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="section">
-          <div class="section-header"><div class="section-title">📊 Resource Usage</div></div>
-          <div class="mini-metrics">
-            <div class="mini-m"><div class="val green">42%</div><div class="lbl">CPU</div></div>
-            <div class="mini-m"><div class="val gold">380MB</div><div class="lbl">RAM</div></div>
-            <div class="mini-m"><div class="val blue">1.2GB</div><div class="lbl">Disk</div></div>
-          </div>
-          <div style="padding:0 24px 16px;font-size:12px;font-family:'Space Mono',monospace;color:var(--muted);">
-            t2.micro: 1 vCPU · 1GB RAM · 8GB SSD<br>
-            Free tier: 750 hrs/month (12 months)
+          <div class="section-header"><div class="section-title">📡 Monitored Pairs</div></div>
+          <div id="eng-pairs-list" style="max-height:260px;overflow-y:auto;padding:12px 24px;display:flex;flex-wrap:wrap;gap:8px;">
+            <div class="empty-state"><p>Loading pairs...</p></div>
           </div>
         </div>
       </div>
@@ -539,314 +440,711 @@
     <div class="page" id="page-logs">
       <div class="section">
         <div class="section-header">
-          <div class="section-title">📋 System Alert Log <span class="section-badge" id="log-count">0 events</span></div>
-          <button class="btn btn-ghost" onclick="clearLogs()">Clear Logs</button>
+          <div class="section-title">📋 Activity Log <span class="section-badge" id="log-count">Loading...</span></div>
+          <button class="btn btn-ghost btn-sm" onclick="loadLogs()">↺ Refresh</button>
         </div>
-        <div id="alert-log"></div>
+        <div id="alert-log"><div class="empty-state"><div class="icon">📋</div><p>Loading logs...</p></div></div>
       </div>
     </div>
 
-    <!-- ===== SETTINGS ===== -->
-    <div class="page" id="page-settings">
-      <div class="grid-2">
-        <div class="section">
-          <div class="section-header"><div class="section-title">🔑 API Keys</div></div>
-          <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
-            <div class="form-row"><label class="form-label">GROQ API KEY</label><input type="password" class="form-input" placeholder="gsk_••••••••••••••••" /></div>
-            <div class="form-row"><label class="form-label">ANTHROPIC API KEY (FALLBACK)</label><input type="password" class="form-input" placeholder="sk-ant-••••••••••••••" /></div>
-            <div class="form-row"><label class="form-label">SUPABASE URL</label><input type="text" class="form-input" placeholder="https://xxx.supabase.co" /></div>
-            <div class="form-row"><label class="form-label">SUPABASE ANON KEY</label><input type="password" class="form-input" placeholder="eyJ••••••••••" /></div>
-            <div class="form-row"><label class="form-label">UPSTASH REDIS URL</label><input type="text" class="form-input" placeholder="rediss://••••@global.upstash.io" /></div>
-            <button class="btn btn-primary" onclick="toast('API keys saved to AWS Secrets Manager','success')">Save Keys →</button>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-header"><div class="section-title">🔔 Notification Settings</div></div>
-          <div class="control-row"><div><div class="control-label">Push Notifications</div><div class="control-sub">FCM · Firebase Cloud Messaging</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
-          <div class="control-row"><div><div class="control-label">High Confidence Alerts (≥80%)</div><div class="control-sub">Immediate push to all users</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
-          <div class="control-row"><div><div class="control-label">HTF Bias Change Alerts</div><div class="control-sub">Notify on trend flip</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
-          <div class="control-row"><div><div class="control-label">Daily Mentor Tip</div><div class="control-sub">AI-generated, 9 AM daily</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
-          <div style="padding:16px 24px;">
-            <div class="form-row"><label class="form-label">FIREBASE SERVER KEY</label><input type="password" class="form-input" placeholder="AAAA••••••••••" /></div>
-            <button class="btn btn-primary" onclick="toast('Notification settings saved!','success')" style="margin-top:8px;">Save Settings →</button>
-          </div>
-        </div>
+    <!-- ===== INFRA ===== -->
+    <div class="page" id="page-infra">
+      <div class="grid-3">
+        <div class="stat-card"><div class="stat-label">API Server</div><div class="stat-value green sm" id="inf-api">● CHECKING</div><div class="stat-change up">Node.js + Fastify</div></div>
+        <div class="stat-card"><div class="stat-label">Database</div><div class="stat-value sm" style="color:var(--purple)">Supabase</div><div class="stat-change up">PostgreSQL · RLS on</div></div>
+        <div class="stat-card"><div class="stat-label">Pub/Sub</div><div class="stat-value sm" style="color:var(--green)">Redis</div><div class="stat-change up">Signal broadcast bus</div></div>
       </div>
-
       <div class="section">
-        <div class="section-header"><div class="section-title">⚠️ Danger Zone</div></div>
-        <div class="control-row">
-          <div><div class="control-label">Flush Signal Cache</div><div class="control-sub">Clears Redis signal history</div></div>
-          <button class="btn btn-danger" onclick="toast('Signal cache flushed','error')">Flush Redis →</button>
-        </div>
-        <div class="control-row">
-          <div><div class="control-label">Restart Signal Engine</div><div class="control-sub">Restarts Python process on EC2</div></div>
-          <button class="btn btn-danger" onclick="toast('Engine restart initiated...','error')">Restart Engine →</button>
-        </div>
+        <div class="section-header"><div class="section-title">☁️ Services</div></div>
+        <table>
+          <thead><tr><th>Service</th><th>Role</th><th>Status</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>API Server</strong></td><td>REST + WebSocket</td><td><span class="badge ok" id="svc-api">● CHECKING</span></td><td style="color:var(--muted);font-size:12px;">Node.js 20 · Fastify · Port 3001</td></tr>
+            <tr><td><strong>Signal Engine</strong></td><td>SMC Detector</td><td><span class="badge warn">● INDIRECT</span></td><td style="color:var(--muted);font-size:12px;">Python 3.11 · inferred from /admin/engine</td></tr>
+            <tr><td><strong>AI Assistant</strong></td><td>Chat + Explain</td><td><span class="badge warn">● INDIRECT</span></td><td style="color:var(--muted);font-size:12px;">FastAPI · Port 8001 (internal)</td></tr>
+            <tr><td><strong>Supabase</strong></td><td>Database + Auth</td><td><span class="badge ok">● CONNECTED</span></td><td style="color:var(--muted);font-size:12px;">Managed Postgres · JWT auth</td></tr>
+            <tr><td><strong>Redis (Upstash)</strong></td><td>Pub/Sub bus</td><td><span class="badge" id="svc-redis" style="color:var(--muted)">● UNKNOWN</span></td><td style="color:var(--muted);font-size:12px;">Configured if engine status OK</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section">
+        <div class="section-header"><div class="section-title">🐳 Docker Containers</div></div>
+        <table>
+          <thead><tr><th>Container</th><th>Image</th><th>Port</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><strong>smc-api-server</strong></td><td>smc/api:latest</td><td>3001</td><td><span class="badge ok" id="dc-api">● INFERRED UP</span></td></tr>
+            <tr><td><strong>smc-signal-engine</strong></td><td>smc/engine:latest</td><td>—</td><td><span class="badge warn">● INDIRECT</span></td></tr>
+            <tr><td><strong>smc-ai-assistant</strong></td><td>smc/ai:latest</td><td>8001</td><td><span class="badge warn">● INTERNAL</span></td></tr>
+            <tr><td><strong>smc-redis</strong></td><td>redis:7-alpine</td><td>6379</td><td><span class="badge ok">● CONNECTED</span></td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
   </div><!-- /content -->
-</main><!-- /main -->
+</main>
 
-<!-- ADD USER MODAL -->
-<div class="modal-bg" id="user-modal">
+<!-- ── SIGNAL DETAIL MODAL ── -->
+<div class="modal-bg" id="sig-modal">
   <div class="modal">
-    <div class="modal-title">Add New User</div>
-    <div class="form-row"><label class="form-label">FULL NAME</label><input class="form-input" placeholder="John Doe" /></div>
-    <div class="form-row"><label class="form-label">EMAIL</label><input class="form-input" type="email" placeholder="john@example.com" /></div>
-    <div class="form-row"><label class="form-label">SKILL LEVEL</label>
-      <select class="form-input"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" id="sig-modal-pair">Signal Detail</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeSigModal()">✕ Close</button>
     </div>
-    <div class="modal-actions">
-      <button class="btn btn-primary" onclick="addUser()">Create User →</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('user-modal').classList.remove('open')">Cancel</button>
-    </div>
+    <div id="sig-modal-body"></div>
   </div>
 </div>
 
 <script>
-// ── CLOCK ──────────────────────────────────────────────────────────
-setInterval(()=>{
-  const n=new Date();
-  document.getElementById('clock').textContent=n.toLocaleTimeString('en-GB',{hour12:false});
-},1000);
+// ══════════════════════════════════════════════
+//  CONFIG & STATE
+// ══════════════════════════════════════════════
+let API_URL    = localStorage.getItem('admin_url') ?? 'http://13.40.3.171:3001';
+let ADMIN_KEY  = localStorage.getItem('admin_key') ?? '';
+let isLoggedIn = false;
 
-// ── NAVIGATION ─────────────────────────────────────────────────────
-function showPage(id,el){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
+// Cached data
+let allSignals = [];
+let sigCurrentFilter = 'all';
+let sigCurrentPage   = 0;
+const SIG_PAGE_SIZE  = 50;
+
+// ══════════════════════════════════════════════
+//  LOGIN
+// ══════════════════════════════════════════════
+async function doLogin() {
+  const url = document.getElementById('login-url').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('login-key').value.trim();
+  if (!url || !key) { showLoginErr('Fill in both fields'); return; }
+
+  try {
+    const res = await fetch(`${url}/admin/stats`, {
+      headers: { 'x-admin-key': key }
+    });
+    if (!res.ok) { showLoginErr('Auth failed — check key'); return; }
+
+    API_URL   = url;
+    ADMIN_KEY = key;
+    localStorage.setItem('admin_url', url);
+    localStorage.setItem('admin_key', key);
+
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('sidebar').style.display = 'flex';
+    document.getElementById('main-app').style.display = 'flex';
+    isLoggedIn = true;
+
+    initAdmin();
+  } catch (e) {
+    showLoginErr('Cannot reach server — check URL');
+  }
+}
+
+function showLoginErr(msg) {
+  const el = document.getElementById('login-err');
+  el.textContent = '❌ ' + msg;
+  el.style.display = 'block';
+}
+
+function logout() {
+  localStorage.removeItem('admin_key');
+  location.reload();
+}
+
+// Auto-login if key stored and not empty
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('login-url').value = API_URL;
+  if (ADMIN_KEY) doLogin();
+});
+
+// ══════════════════════════════════════════════
+//  API HELPER
+// ══════════════════════════════════════════════
+async function api(path, opts = {}) {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key':  ADMIN_KEY,
+      ...(opts.headers ?? {}),
+    },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+function initAdmin() {
+  startClock();
+  connectWS();
+  loadDashboard();
+  // Poll health every 30s
+  setInterval(checkHealth, 30_000);
+}
+
+let currentPage = 'dashboard';
+const PAGE_LOADERS = {
+  dashboard: loadDashboard,
+  signals:   loadSignals,
+  users:     loadUsers,
+  trades:    loadTrades,
+  engine:    loadEngine,
+  logs:      loadLogs,
+  infra:     loadInfra,
+};
+
+function nav(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
   el.classList.add('active');
-  const titles={dashboard:'Dashboard',signals:'Live Signals',engine:'Signal Engine',users:'User Management',ai:'AI Mentor',infra:'Infrastructure',logs:'Alert Logs',settings:'Settings'};
-  document.getElementById('page-title').textContent=titles[id]||id;
+  const titles = {dashboard:'Dashboard',signals:'Live Signals',users:'Users',trades:'Trades',engine:'Signal Engine',logs:'Activity Logs',infra:'Infrastructure'};
+  document.getElementById('page-title').textContent = titles[id] ?? id;
+  currentPage = id;
+  if (PAGE_LOADERS[id]) PAGE_LOADERS[id]();
 }
 
-// ── MOCK DATA ───────────────────────────────────────────────────────
-const PAIRS=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT','ADAUSDT'];
-const PRICES={'BTCUSDT':67450,'ETHUSDT':3520,'SOLUSDT':145,'BNBUSDT':590,'XRPUSDT':0.58,'ADAUSDT':0.44};
-const TYPES=['BUY','SELL'];
-const CONF_TYPES=['Liquidity Sweep','Order Block Tap','BOS/CHOCH','FVG','HTF Aligned'];
-let signals=[], allLogs=[], userList=[];
-let sigCount=0, buyCount=0, sellCount=0;
-
-function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
-function randEl(arr){return arr[Math.floor(Math.random()*arr.length)];}
-function timeAgo(ms){const s=Math.floor((Date.now()-ms)/1000);if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';return Math.floor(s/3600)+'h ago';}
-function fmtTime(ms){return new Date(ms).toLocaleTimeString('en-GB',{hour12:false});}
-
-function genSignal(){
-  const pair=randEl(PAIRS),type=randEl(TYPES);
-  const base=PRICES[pair];
-  const score=randInt(65,100);
-  const numConf=randInt(2,5);
-  const confs=[...CONF_TYPES].sort(()=>Math.random()-.5).slice(0,numConf);
-  const entry=+(base*(1+(Math.random()-.5)*.002)).toFixed(pair==='BTCUSDT'?2:4);
-  const sl=+(entry*(type==='BUY'?0.992:1.008)).toFixed(pair==='BTCUSDT'?2:4);
-  const tp=+(entry*(type==='BUY'?1.022:0.978)).toFixed(pair==='BTCUSDT'?2:4);
-  const rr=+(Math.abs(tp-entry)/Math.abs(entry-sl)).toFixed(1);
-  return{id:'SIG-'+Math.random().toString(36).substr(2,6).toUpperCase(),pair,type,entry,sl,tp,rr,score,confs,time:Date.now(),status:randEl(['ACTIVE','ACTIVE','FILLED','EXPIRED'])};
+function refreshCurrent() {
+  if (PAGE_LOADERS[currentPage]) PAGE_LOADERS[currentPage]();
 }
 
-function genUsers(){
-  const names=[['0xLambo','lambo@smc.io'],['CryptoKing','ck@trade.io'],['AlphaWaves','aw@fx.io'],['SMC_Ace','ace@lambo.io'],['NightTrader','nt@smc.io'],['ZoneMaster','zm@trade.io']];
-  return names.map(([n,e],i)=>({name:n,email:e,level:randEl(['Beginner','Intermediate','Advanced']),signals:randInt(20,200),winrate:randInt(50,85)+'%',online:Math.random()>.4,joined:'2025-0'+(i+1)+'-'+randInt(1,28)}));
+// ══════════════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════════════
+function startClock() {
+  const update = () => {
+    document.getElementById('clock').textContent =
+      new Date().toLocaleTimeString('en-GB', { hour12: false });
+  };
+  update();
+  setInterval(update, 1000);
 }
 
-function initData(){
-  userList=genUsers();
-  for(let i=0;i<15;i++){
-    const s=genSignal();
-    s.time=Date.now()-randInt(0,86400000);
-    signals.push(s);
+// ══════════════════════════════════════════════
+//  WEBSOCKET (live signal stream)
+// ══════════════════════════════════════════════
+function connectWS() {
+  const wsUrl = API_URL.replace(/^http/, 'ws') + '/ws';
+  let ws;
+
+  function setWSUI(state) {
+    const pill = document.getElementById('ws-pill');
+    const dot  = document.getElementById('ws-dot');
+    const lbl  = document.getElementById('ws-label');
+    pill.className = 'ws-pill ' + state;
+    dot.className  = 'status-dot' + (state === 'connected' ? '' : ' off');
+    lbl.textContent = state.toUpperCase();
+    document.getElementById('api-dot').className   = 'status-dot' + (state === 'connected' ? '' : ' off');
+    document.getElementById('api-status').textContent = state === 'connected' ? 'LIVE' : state.toUpperCase();
   }
-  signals.sort((a,b)=>b.time-a.time);
-  buyCount=signals.filter(s=>s.type==='BUY').length;
-  sellCount=signals.filter(s=>s.type==='SELL').length;
-  sigCount=signals.length;
 
-  // logs
-  const logMsgs=[
-    ['info','Binance WebSocket connected · streams: BTCUSDT,ETHUSDT,SOLUSDT'],
-    ['ok','Signal published: BTCUSDT BUY · confidence 90% · RR 2.4'],
-    ['ok','Redis Pub/Sub connection established · Upstash cluster'],
-    ['warn','Groq daily quota at 80% · fallback ready'],
-    ['info','HTF bias changed: ETHUSDT → BEARISH on 4H close'],
-    ['ok','Signal published: SOLUSDT SELL · confidence 75% · RR 2.1'],
-    ['info','New user registered: NightTrader · skill: Beginner'],
-    ['err','Binance rate limit hit · backing off 10s'],
-    ['ok','AI explanation generated for SIG-A3F2B1 · 312ms'],
-    ['info','FCM push sent: 6 users · BTCUSDT high confidence'],
-  ];
-  logMsgs.forEach(([t,m],i)=>{
-    allLogs.push({type:t,msg:m,time:Date.now()-randInt(0,3600000)});
-  });
-  allLogs.sort((a,b)=>b.time-a.time);
+  function tryConnect() {
+    setWSUI('connecting');
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch {
+      setWSUI('error');
+      setTimeout(tryConnect, 10000);
+      return;
+    }
+
+    ws.onopen = () => setWSUI('connected');
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.event === 'ping') { ws.send(JSON.stringify({ type: 'pong' })); return; }
+        if (msg.event === 'signal:new') {
+          const s = msg.data;
+          toast(`⚡ NEW: ${s.pair} ${s.type} · ${s.confidence_score}% conf`, 'info');
+          document.getElementById('sig-badge').textContent =
+            (parseInt(document.getElementById('sig-badge').textContent || '0') + 1).toString();
+          // Refresh dashboard if on it
+          if (currentPage === 'dashboard') loadDashboard();
+          if (currentPage === 'signals')   loadSignals();
+        }
+      } catch {}
+    };
+
+    ws.onclose = () => {
+      setWSUI('error');
+      setTimeout(tryConnect, 8000);
+    };
+  }
+
+  // WS is JWT-gated — admin panel connects without token (read-only view)
+  // For now we just show the pill but don't authenticate
+  // You can add WS admin auth later
+  tryConnect();
 }
 
-// ── RENDER FUNCTIONS ────────────────────────────────────────────────
-function renderDash(){
-  const highConf=signals.filter(s=>s.score>=80).length;
-  const avg=Math.round(signals.reduce((a,s)=>a+s.score,0)/signals.length||0);
+// ══════════════════════════════════════════════
+//  HEALTH CHECK
+// ══════════════════════════════════════════════
+async function checkHealth() {
+  try {
+    await fetch(`${API_URL}/health`);
+    document.getElementById('inf-api').textContent   = '● ONLINE';
+    document.getElementById('svc-api').textContent   = '● ONLINE';
+    document.getElementById('svc-api').className     = 'badge ok';
+    document.getElementById('dc-api').textContent    = '● RUNNING';
+  } catch {
+    document.getElementById('inf-api').textContent = '● UNREACHABLE';
+  }
+}
 
-  document.getElementById('d-total').textContent=sigCount;
-  document.getElementById('d-total-ch').textContent=`↑ +${randInt(3,12)} since last hour`;
-  document.getElementById('d-high').textContent=highConf;
-  document.getElementById('d-users').textContent=userList.filter(u=>u.online).length;
-  document.getElementById('d-users-ch').textContent=userList.length+' total registered';
-  document.getElementById('d-avg').textContent=avg+'%';
-  document.getElementById('d-avg-ch').className='stat-change '+(avg>=70?'up':'down');
-  document.getElementById('d-avg-ch').textContent=avg>=70?'↑ Above threshold':'↓ Monitor closely';
+// ══════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════
+async function loadDashboard() {
+  try {
+    const [stats, hourly, sigs] = await Promise.all([
+      api('/admin/stats'),
+      api('/admin/chart/hourly'),
+      api('/admin/signals?limit=10'),
+    ]);
 
-  // Hourly chart
-  const chart=document.getElementById('hourly-chart');
-  chart.innerHTML='';
-  const maxH=12;
-  for(let i=0;i<24;i++){
-    const h=randInt(0,maxH);
-    const col=document.createElement('div');
-    col.className='bar-col';
-    const pct=Math.max(4,(h/maxH)*100);
-    const c=h>=8?'var(--accent)':h>=5?'var(--green)':'var(--border)';
-    col.style.cssText=`height:${pct}%;background:${c};opacity:0.8;`;
-    col.title=`${i}:00 — ${h} signals`;
+    document.getElementById('d-today').textContent   = stats.today_signals ?? 0;
+    document.getElementById('d-total-lbl').textContent = `Total: ${stats.total_signals ?? 0} all time`;
+    document.getElementById('d-high').textContent    = stats.high_conf_today ?? 0;
+    document.getElementById('d-users').textContent   = stats.total_users ?? 0;
+    document.getElementById('d-wr').textContent      = `Win rate: ${stats.win_rate ?? 0}%`;
+    const avg = stats.avg_confidence ?? 0;
+    document.getElementById('d-avg').textContent     = avg + '%';
+    document.getElementById('d-avg').className       = 'stat-value ' + (avg >= 80 ? 'green' : avg >= 65 ? 'blue' : 'red');
+    document.getElementById('d-avg-lbl').textContent = avg >= 70 ? '↑ Above threshold' : '↓ Monitor closely';
+    document.getElementById('d-avg-lbl').className   = 'stat-change ' + (avg >= 70 ? 'up' : 'down');
+
+    // Hourly chart
+    renderHourlyChart(hourly.bins ?? []);
+
+    // Live pairs from Binance
+    loadBinancePairs();
+
+    // Recent signals table
+    document.getElementById('dash-signals').innerHTML =
+      (sigs.signals ?? []).map(s => dashSignalRow(s)).join('') ||
+      '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">No signals found</td></tr>';
+
+    // Update badge
+    document.getElementById('sig-badge').textContent = stats.today_signals ?? 0;
+
+  } catch (e) {
+    toast('Dashboard load failed: ' + e.message, 'error');
+  }
+}
+
+function renderHourlyChart(bins) {
+  const chart = document.getElementById('hourly-chart');
+  chart.innerHTML = '';
+  const max = Math.max(...bins, 1);
+  bins.forEach((h, i) => {
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    const pct = Math.max(4, (h / max) * 100);
+    const c   = h >= 5 ? 'var(--accent)' : h >= 2 ? 'var(--green)' : 'var(--border)';
+    col.style.cssText = `height:${pct}%;background:${c};opacity:0.85;`;
+    col.title = `${i.toString().padStart(2,'0')}:00 UTC — ${h} signal${h!==1?'s':''}`;
     chart.appendChild(col);
-  }
-
-  // Pairs
-  const pairList=document.getElementById('pair-list');
-  pairList.innerHTML=PAIRS.map(p=>{
-    const ch=(Math.random()-.4)*5;
-    const price=PRICES[p];
-    const disp=p==='BTCUSDT'?price.toLocaleString():(price<1?price.toFixed(4):price.toFixed(2));
-    return `<div class="pair-item"><span class="pair-name">${p.replace('USDT','')}<span style="color:var(--muted);font-size:11px;">/USDT</span></span><span class="pair-price">$${disp}</span><span class="pair-change ${ch>=0?'up':'down'}" style="color:${ch>=0?'var(--green)':'var(--red)'}">${ch>=0?'+':''}${ch.toFixed(2)}%</span></div>`;
-  }).join('');
-
-  // Recent signals table
-  const tbody=document.getElementById('dash-signals');
-  tbody.innerHTML=signals.slice(0,10).map(s=>signalRow(s,false)).join('');
-}
-
-function confBar(score){
-  const c=score>=80?'var(--green)':score>=60?'var(--gold)':'var(--red)';
-  return `<div class="conf-bar"><div class="conf-fill" style="width:${score}%;background:${c}"></div></div><span style="font-family:'Space Mono',monospace;font-size:11px;">${score}%</span>`;
-}
-
-function signalRow(s,full=true){
-  const statusBadge={ACTIVE:'<span class="badge high">ACTIVE</span>',FILLED:'<span class="badge buy">FILLED</span>',EXPIRED:'<span class="badge" style="background:rgba(90,96,128,.2);color:var(--muted);">EXPIRED</span>'};
-  if(!full) return `<tr><td><strong>${s.pair}</strong></td><td><span class="badge ${s.type==='BUY'?'buy':'sell'}">${s.type}</span></td><td>${confBar(s.score)}</td><td style="font-size:11px;color:var(--muted);">${s.confs.slice(0,2).join(', ')}</td><td style="font-family:'Space Mono',monospace;">1:${s.rr}</td><td style="font-family:'Space Mono',monospace;color:var(--muted);">${timeAgo(s.time)}</td></tr>`;
-  return `<tr><td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">${s.id}</td><td><strong>${s.pair}</strong></td><td><span class="badge ${s.type==='BUY'?'buy':'sell'}">${s.type}</span></td><td style="font-family:'Space Mono',monospace;font-size:12px;">${s.entry}</td><td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--red);">${s.sl}</td><td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--green);">${s.tp}</td><td>${confBar(s.score)}</td><td style="font-family:'Space Mono',monospace;">1:${s.rr}</td><td>${statusBadge[s.status]||''}</td><td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">${timeAgo(s.time)}</td></tr>`;
-}
-
-let sigFilter='all';
-function filterSignals(f){
-  sigFilter=f;
-  ['all','BUY','SELL'].forEach(x=>{
-    const el=document.getElementById('f-'+x.toLowerCase());
-    if(el) el.style.color=x===f?'var(--accent)':'';
   });
-  renderSignals();
 }
 
-function renderSignals(){
-  const filtered=sigFilter==='all'?signals:signals.filter(s=>s.type===sigFilter);
-  document.getElementById('s-buy').textContent=buyCount;
-  document.getElementById('s-sell').textContent=sellCount;
-  document.getElementById('s-rr').textContent='1:'+(signals.reduce((a,s)=>a+s.rr,0)/signals.length||0).toFixed(1);
-  document.getElementById('s-pub').textContent=sigCount;
-  document.getElementById('s-count-badge').textContent=filtered.length+' total';
-  document.getElementById('all-signals').innerHTML=filtered.map(s=>signalRow(s,true)).join('');
+async function loadBinancePairs() {
+  const PAIRS = ['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT','ADAUSDT','AVAXUSDT','DOTUSDT','MATICUSDT','LINKUSDT'];
+  try {
+    const param = encodeURIComponent(JSON.stringify(PAIRS));
+    const res   = await fetch(`https://api.binance.com/api/v3/ticker/price?symbols=${param}`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    const map  = {};
+    data.forEach(d => map[d.symbol] = parseFloat(d.price));
+
+    // 24h change
+    const res2   = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${param}`);
+    const data2  = await res2.json();
+    const chgMap = {};
+    data2.forEach(d => chgMap[d.symbol] = parseFloat(d.priceChangePercent));
+
+    document.getElementById('pair-list').innerHTML = PAIRS.map(p => {
+      const price = map[p] ?? 0;
+      const chg   = chgMap[p] ?? 0;
+      const disp  = price > 1000 ? price.toLocaleString(undefined, {maximumFractionDigits: 2}) :
+                    price > 1    ? price.toFixed(3) : price.toFixed(5);
+      return `<div class="pair-item">
+        <span class="pair-name">${p.replace('USDT','')}<span style="color:var(--muted);font-size:11px;">/USDT</span></span>
+        <span class="pair-price">$${disp}</span>
+        <span class="pair-change" style="color:${chg>=0?'var(--green)':'var(--red)'}">${chg>=0?'+':''}${chg.toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+  } catch {
+    document.getElementById('pair-list').innerHTML = '<div class="empty-state"><p>Binance data unavailable</p></div>';
+  }
 }
 
-function renderUsers(){
-  document.getElementById('u-total').textContent=userList.length;
-  document.getElementById('u-online').textContent=userList.filter(u=>u.online).length;
-  document.getElementById('u-beg').textContent=userList.filter(u=>u.level==='Beginner').length;
-  document.getElementById('u-adv').textContent=userList.filter(u=>u.level==='Advanced').length;
-  document.getElementById('user-table').innerHTML=userList.map((u,i)=>`
-    <tr>
-      <td><span class="avatar">${u.name[0]}</span>${u.name}</td>
-      <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);">${u.email}</td>
-      <td><span class="badge ${u.level==='Advanced'?'high':u.level==='Intermediate'?'med':'buy'}">${u.level}</span></td>
-      <td style="font-family:'Space Mono',monospace;">${u.signals}</td>
-      <td style="color:var(--green);font-family:'Space Mono',monospace;">${u.winrate}</td>
-      <td><span class="badge ${u.online?'online':'offline'}">● ${u.online?'ONLINE':'OFFLINE'}</span></td>
-      <td style="font-size:12px;color:var(--muted);">${u.joined}</td>
-      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="removeUser(${i})">Remove</button></td>
-    </tr>`).join('');
+function dashSignalRow(s) {
+  const conf = s.confidence_score ?? 0;
+  const c    = conf >= 80 ? 'var(--green)' : conf >= 65 ? 'var(--gold)' : 'var(--red)';
+  return `<tr>
+    <td><strong>${s.pair}</strong></td>
+    <td><span class="badge ${s.type==='BUY'?'buy':'sell'}">${s.type}</span></td>
+    <td><div class="conf-bar"><div class="conf-fill" style="width:${conf}%;background:${c}"></div></div><span style="font-family:'Space Mono',monospace;font-size:11px;">${conf}%</span></td>
+    <td style="font-family:'Space Mono',monospace;font-size:12px;">${s.entry ?? '—'}</td>
+    <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--red)">${s.stop_loss ?? '—'}</td>
+    <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--green)">${s.take_profit ?? '—'}</td>
+    <td style="font-family:'Space Mono',monospace;font-size:12px;">1:${s.risk_reward ?? '—'}</td>
+    <td style="font-size:11px;color:var(--muted)">${timeAgo(s.signal_time ?? s.timestamp)}</td>
+  </tr>`;
 }
 
-function renderAI(){
-  document.getElementById('ai-q').textContent=randInt(120,300);
-  document.getElementById('ai-rt').textContent=randInt(180,250)+'ms';
-  document.getElementById('ai-today').textContent=randInt(20,60);
-  document.getElementById('ai-week').textContent=randInt(150,400);
-  document.getElementById('ai-total2').textContent=randInt(500,2000);
+// ══════════════════════════════════════════════
+//  SIGNALS PAGE
+// ══════════════════════════════════════════════
+async function loadSignals() {
+  try {
+    const params = new URLSearchParams({ limit: '500' });
+    if (sigCurrentFilter === 'BUY' || sigCurrentFilter === 'SELL') params.set('type', sigCurrentFilter);
+    if (sigCurrentFilter === 'high') params.set('min_score', '80');
+    const data = await api('/admin/signals?' + params.toString());
+    allSignals = data.signals ?? [];
+
+    const buy  = allSignals.filter(s => s.type === 'BUY').length;
+    const sell = allSignals.filter(s => s.type === 'SELL').length;
+    const avg  = allSignals.length > 0 ? Math.round(allSignals.reduce((a,s) => a + (s.confidence_score??0), 0) / allSignals.length) : 0;
+
+    document.getElementById('s-buy').textContent   = buy;
+    document.getElementById('s-sell').textContent  = sell;
+    document.getElementById('s-total').textContent = data.count ?? allSignals.length;
+    document.getElementById('s-avg').textContent   = avg + '%';
+    document.getElementById('s-count-badge').textContent = (data.count ?? allSignals.length) + ' total';
+
+    renderSignalsPage();
+  } catch (e) {
+    toast('Signals load failed: ' + e.message, 'error');
+  }
 }
 
-function renderLogs(){
-  document.getElementById('log-count').textContent=allLogs.length+' events';
-  document.getElementById('alert-log').innerHTML=allLogs.map(l=>`
-    <div class="alert-item">
-      <div class="alert-dot ${l.type}"></div>
-      <div>
-        <div class="alert-msg">${l.msg}</div>
-        <div class="alert-time">${fmtTime(l.time)}</div>
+function renderSignalsPage() {
+  const start  = sigCurrentPage * SIG_PAGE_SIZE;
+  const page   = allSignals.slice(start, start + SIG_PAGE_SIZE);
+  document.getElementById('s-pager').textContent = `Page ${sigCurrentPage + 1} of ${Math.ceil(allSignals.length / SIG_PAGE_SIZE) || 1}`;
+  document.getElementById('all-signals').innerHTML = page.map(s => fullSignalRow(s)).join('') ||
+    '<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--muted)">No signals found</td></tr>';
+}
+
+function sigPage(dir) {
+  const maxPage = Math.ceil(allSignals.length / SIG_PAGE_SIZE) - 1;
+  sigCurrentPage = Math.max(0, Math.min(maxPage, sigCurrentPage + dir));
+  renderSignalsPage();
+}
+
+function sigFilter(f) {
+  sigCurrentFilter = f;
+  sigCurrentPage   = 0;
+  ['all','buy','sell','high'].forEach(x => {
+    const el = document.getElementById('sf-' + x);
+    if (el) el.style.color = x === f ? 'var(--accent)' : '';
+  });
+  loadSignals();
+}
+
+function fullSignalRow(s) {
+  const conf = s.confidence_score ?? 0;
+  const c    = conf >= 80 ? 'var(--green)' : conf >= 65 ? 'var(--gold)' : 'var(--red)';
+  const bias = s.htf_bias ?? '—';
+  const biasColor = bias === 'BULLISH' ? 'var(--green)' : bias === 'BEARISH' ? 'var(--red)' : 'var(--muted)';
+  const id   = (s.id ?? s.signal_id ?? '').toString().slice(0, 8);
+  return `<tr>
+    <td style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);cursor:pointer;" onclick="openSigModal('${s.id ?? s.signal_id}')">${id}...</td>
+    <td><strong style="cursor:pointer;" onclick="openSigModal('${s.id ?? s.signal_id}')">${s.pair}</strong></td>
+    <td><span class="badge ${s.type==='BUY'?'buy':'sell'}">${s.type}</span></td>
+    <td style="font-family:'Space Mono',monospace;font-size:12px;">${s.entry ?? '—'}</td>
+    <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--red)">${s.stop_loss ?? '—'}</td>
+    <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--green)">${s.take_profit ?? '—'}</td>
+    <td><div class="conf-bar"><div class="conf-fill" style="width:${conf}%;background:${c}"></div></div><span style="font-family:'Space Mono',monospace;font-size:11px;">${conf}%</span></td>
+    <td style="font-family:'Space Mono',monospace;">1:${s.risk_reward ?? '—'}</td>
+    <td style="color:${biasColor};font-family:'Space Mono',monospace;font-size:11px;">${bias}</td>
+    <td style="font-size:11px;color:var(--muted)">${timeAgo(s.signal_time ?? s.timestamp)}</td>
+    <td><button class="btn btn-danger btn-sm" onclick="deleteSignal('${s.id ?? s.signal_id}', this)">Delete</button></td>
+  </tr>`;
+}
+
+async function deleteSignal(id, btn) {
+  if (!confirm('Delete signal ' + id + '?')) return;
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    await api('/admin/signals/' + id, { method: 'DELETE' });
+    toast('Signal deleted', 'success');
+    loadSignals();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Delete';
+  }
+}
+
+// ── Signal modal ──
+let _sigCache = {};
+async function openSigModal(id) {
+  document.getElementById('sig-modal').classList.add('open');
+  document.getElementById('sig-modal-pair').textContent = 'Loading...';
+  document.getElementById('sig-modal-body').innerHTML = '<div style="text-align:center;padding:32px;"><span class="spinner"></span></div>';
+
+  try {
+    const s = _sigCache[id] ?? (await api('/admin/signals?limit=1')).signals?.find(x => (x.id ?? x.signal_id) === id);
+    _sigCache[id] = s;
+    if (!s) throw new Error('Not found');
+
+    const conf = s.confidence_score ?? 0;
+    const c    = conf >= 80 ? 'var(--green)' : conf >= 65 ? 'var(--gold)' : 'var(--red)';
+
+    document.getElementById('sig-modal-pair').textContent = `${s.pair} — ${s.type}`;
+    document.getElementById('sig-modal-body').innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-cell"><div class="val" style="color:var(--accent)">${s.entry}</div><div class="lbl">ENTRY</div></div>
+        <div class="detail-cell"><div class="val" style="color:var(--red)">${s.stop_loss}</div><div class="lbl">STOP LOSS</div></div>
+        <div class="detail-cell"><div class="val" style="color:var(--green)">${s.take_profit}</div><div class="lbl">TAKE PROFIT</div></div>
+        <div class="detail-cell"><div class="val">1:${s.risk_reward}</div><div class="lbl">R/R</div></div>
       </div>
-    </div>`).join('');
-}
-
-function renderAll(){
-  document.getElementById('sig-badge').textContent=signals.filter(s=>s.score>=80).length;
-  renderDash();renderSignals();renderUsers();renderAI();renderLogs();
-}
-
-// ── ACTIONS ─────────────────────────────────────────────────────────
-function addUser(){
-  toast('User created successfully','success');
-  document.getElementById('user-modal').classList.remove('open');
-}
-function removeUser(i){
-  userList.splice(i,1);renderUsers();toast('User removed','error');
-}
-function clearLogs(){allLogs=[];renderLogs();toast('Logs cleared','success');}
-
-function refreshData(){
-  // Simulate new signal arriving
-  const s=genSignal();
-  signals.unshift(s);
-  sigCount++;
-  if(s.type==='BUY')buyCount++;else sellCount++;
-  if(s.score>=80){
-    allLogs.unshift({type:'ok',msg:`Signal published: ${s.pair} ${s.type} · confidence ${s.score}% · RR ${s.rr}`,time:Date.now()});
-    toast(`NEW: ${s.pair} ${s.type} · ${s.score}% confidence`,'success');
+      <div style="padding:16px 24px;border-bottom:1px solid var(--border);">
+        <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:8px;">CONFIDENCE</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:${conf}%;background:${c};border-radius:4px;"></div>
+          </div>
+          <span style="font-family:'Space Mono',monospace;font-weight:700;color:${c}">${conf}%</span>
+        </div>
+      </div>
+      <div style="padding:16px 24px;border-bottom:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap;">
+        <div><div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:'Space Mono',monospace;">HTF BIAS</div><div style="font-weight:700;margin-top:4px;color:${s.htf_bias==='BULLISH'?'var(--green)':s.htf_bias==='BEARISH'?'var(--red)':'var(--muted)'}">${s.htf_bias ?? '—'}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:'Space Mono',monospace;">TIMEFRAME</div><div style="font-weight:700;margin-top:4px;">${s.timeframe ?? '—'}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:'Space Mono',monospace;">HTF TF</div><div style="font-weight:700;margin-top:4px;">${s.htf_timeframe ?? '—'}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:'Space Mono',monospace;">MODEL</div><div style="font-weight:700;margin-top:4px;">${s.entry_model ?? '—'}</div></div>
+      </div>
+      ${(s.confluences ?? []).length > 0 ? `
+      <div style="padding:16px 24px;border-bottom:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:'Space Mono',monospace;margin-bottom:10px;">CONFLUENCES</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">${(s.confluences ?? []).map(c => `<span class="badge high">${c}</span>`).join('')}</div>
+      </div>` : ''}
+      ${s.ai_explanation ? `
+      <div style="padding:16px 24px;">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:'Space Mono',monospace;margin-bottom:10px;">AI EXPLANATION</div>
+        <div style="font-size:13px;color:var(--text);line-height:22px;">${s.ai_explanation}</div>
+      </div>` : ''}
+    `;
+  } catch (e) {
+    document.getElementById('sig-modal-body').innerHTML = `<div class="empty-state"><p>Could not load signal: ${e.message}</p></div>`;
   }
-  renderAll();
 }
 
-// ── TOAST ────────────────────────────────────────────────────────────
-function toast(msg,type='success'){
-  const w=document.getElementById('toastWrap');
-  const t=document.createElement('div');
-  t.className=`toast ${type}`;
-  t.innerHTML=`<span>${type==='success'?'✓':'✗'}</span> ${msg}`;
+function closeSigModal() {
+  document.getElementById('sig-modal').classList.remove('open');
+}
+document.getElementById('sig-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('sig-modal')) closeSigModal();
+});
+
+// ══════════════════════════════════════════════
+//  USERS
+// ══════════════════════════════════════════════
+async function loadUsers() {
+  try {
+    const data = await api('/admin/users?limit=200');
+    const users = data.users ?? [];
+
+    document.getElementById('u-total').textContent       = data.count ?? users.length;
+    document.getElementById('u-count-badge').textContent = (data.count ?? users.length) + ' total';
+
+    const avgWR    = users.length > 0 ? Math.round(users.reduce((a,u) => a + (u.win_rate ?? 0), 0) / users.length) : 0;
+    const notifyHC = users.filter(u => u.notify_high_confidence).length;
+    const avgPref  = users.length > 0 ? Math.round(users.reduce((a,u) => a + (u.min_confidence_threshold ?? 65), 0) / users.length) : 65;
+
+    document.getElementById('u-winrate').textContent = avgWR + '%';
+    document.getElementById('u-notify').textContent  = notifyHC;
+    document.getElementById('u-avgpref').textContent = avgPref + '%';
+
+    document.getElementById('user-table').innerHTML = users.map(u => {
+      const uid    = (u.user_id ?? '').slice(0, 8);
+      const pairs  = (u.watched_pairs ?? []).length;
+      return `<tr>
+        <td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">${uid}...</td>
+        <td style="font-family:'Space Mono',monospace;">${u.min_confidence_threshold ?? 65}%</td>
+        <td>${u.notify_high_confidence ? '<span class="badge ok">✓ YES</span>' : '<span class="badge neutral">NO</span>'}</td>
+        <td>${u.notify_all_signals ? '<span class="badge ok">✓ YES</span>' : '<span class="badge neutral">NO</span>'}</td>
+        <td style="font-family:'Space Mono',monospace;">${pairs} pair${pairs !== 1 ? 's' : ''}</td>
+        <td style="font-family:'Space Mono',monospace;">${u.trade_count ?? 0}</td>
+        <td style="color:${(u.win_rate??0)>=50?'var(--green)':'var(--red)'};font-family:'Space Mono',monospace;">${u.win_rate ?? 0}%</td>
+        <td style="font-family:'Space Mono',monospace;">1:${u.default_rr_target ?? 2}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">No users found</td></tr>';
+
+  } catch (e) {
+    toast('Users load failed: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  TRADES
+// ══════════════════════════════════════════════
+async function loadTrades() {
+  try {
+    const data   = await api('/admin/trades?limit=200');
+    const trades = data.trades ?? [];
+    const wins   = trades.filter(t => t.outcome === 'WIN').length;
+    const losses = trades.filter(t => t.outcome === 'LOSS').length;
+    const wr     = trades.length > 0 ? Math.round((wins / trades.length) * 100) : 0;
+
+    document.getElementById('tr-total').textContent     = data.count ?? trades.length;
+    document.getElementById('tr-wins').textContent      = wins;
+    document.getElementById('tr-losses').textContent    = losses;
+    document.getElementById('tr-wr').textContent        = wr + '%';
+    document.getElementById('tr-count-badge').textContent = (data.count ?? trades.length) + ' total';
+
+    document.getElementById('trade-table').innerHTML = trades.map(t => {
+      const oc = t.outcome;
+      const ocClass = oc === 'WIN' ? 'buy' : oc === 'LOSS' ? 'sell' : 'neutral';
+      const uid = (t.user_id ?? '').slice(0, 8);
+      return `<tr>
+        <td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">${uid}...</td>
+        <td><strong>${t.pair ?? '—'}</strong></td>
+        <td><span class="badge ${t.type === 'BUY' ? 'buy' : 'sell'}">${t.type ?? '—'}</span></td>
+        <td style="font-family:'Space Mono',monospace;font-size:12px;">${t.entry ?? '—'}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--red)">${t.stop_loss ?? '—'}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--green)">${t.take_profit ?? '—'}</td>
+        <td style="font-family:'Space Mono',monospace;">1:${t.risk_reward ?? '—'}</td>
+        <td><span class="badge ${ocClass}">${oc ?? '—'}</span></td>
+        <td style="font-size:11px;color:var(--muted)">${fmtDate(t.created_at)}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted)">No trades logged</td></tr>';
+
+  } catch (e) {
+    toast('Trades load failed: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  ENGINE
+// ══════════════════════════════════════════════
+async function loadEngine() {
+  try {
+    const data = await api('/admin/engine/status');
+
+    document.getElementById('eng-status').textContent  = '● ' + (data.status ?? 'UNKNOWN');
+    document.getElementById('eng-pairs').textContent   = data.pairs_count ?? 0;
+    document.getElementById('eng-recent').textContent  = data.signals_last_1h ?? 0;
+
+    // Sync sliders
+    if (data.confidence_threshold) {
+      document.getElementById('sl-conf').value = data.confidence_threshold;
+      document.getElementById('vl-conf').textContent = data.confidence_threshold + '%';
+    }
+    if (data.min_rr) {
+      document.getElementById('sl-rr').value = data.min_rr;
+      document.getElementById('vl-rr').textContent = '1:' + data.min_rr;
+    }
+    if (data.signal_cooldown_sec) {
+      document.getElementById('sl-cd').value = data.signal_cooldown_sec;
+      document.getElementById('vl-cd').textContent = data.signal_cooldown_sec + 's';
+    }
+
+    // Redis indicator
+    const redisEl = document.getElementById('svc-redis');
+    if (data.redis_url === 'configured') {
+      redisEl.textContent = '● CONFIGURED';
+      redisEl.className   = 'badge ok';
+    }
+
+    // Pairs list
+    const pairs = data.pairs ?? [];
+    document.getElementById('eng-pairs-list').innerHTML = pairs.length > 0
+      ? pairs.map(p => `<span class="badge high" style="cursor:default;">${p.replace('USDT','')}</span>`).join('')
+      : '<div class="empty-state"><p>No pairs configured</p></div>';
+
+  } catch (e) {
+    document.getElementById('eng-status').textContent = '● UNREACHABLE';
+    toast('Engine status failed: ' + e.message, 'error');
+  }
+}
+
+async function saveEngineConfig() {
+  const conf = parseInt(document.getElementById('sl-conf').value, 10);
+  const rr   = parseFloat(document.getElementById('sl-rr').value);
+  const cd   = parseInt(document.getElementById('sl-cd').value, 10);
+  try {
+    await api('/admin/engine/config', {
+      method: 'POST',
+      body: JSON.stringify({ confidence_threshold: conf, min_rr: rr, signal_cooldown_sec: cd }),
+    });
+    toast('Engine config saved!', 'success');
+  } catch (e) {
+    toast('Config save failed: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  LOGS
+// ══════════════════════════════════════════════
+async function loadLogs() {
+  try {
+    const data = await api('/admin/logs?limit=100');
+    const logs = data.logs ?? [];
+    document.getElementById('log-count').textContent = logs.length + ' entries';
+
+    document.getElementById('alert-log').innerHTML = logs.length > 0
+      ? logs.map(l => `
+        <div class="alert-item">
+          <div class="alert-dot ${l.role === 'user' ? 'info' : 'ok'}"></div>
+          <div>
+            <div class="alert-msg"><strong>${l.role === 'user' ? 'User' : 'AI'}:</strong> ${escapeHtml(l.content?.slice(0, 200) ?? '...')}</div>
+            <div class="alert-time">${fmtDate(l.created_at)} · user ${(l.user_id ?? '').slice(0, 8)}...</div>
+          </div>
+        </div>`).join('')
+      : '<div class="empty-state"><div class="icon">📋</div><p>No activity logs found</p></div>';
+  } catch (e) {
+    toast('Logs load failed: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  INFRA
+// ══════════════════════════════════════════════
+async function loadInfra() {
+  checkHealth();
+  loadEngine(); // reuse engine status for Redis check
+}
+
+// ══════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════
+function timeAgo(val) {
+  if (!val) return '—';
+  const ms = typeof val === 'number' ? val : new Date(val).getTime();
+  const s  = Math.floor((Date.now() - ms) / 1000);
+  if (s < 60)   return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400)return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+function fmtDate(val) {
+  if (!val) return '—';
+  return new Date(val).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toast(msg, type = 'success') {
+  const w = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'}</span> ${msg}`;
   w.appendChild(t);
-  requestAnimationFrame(()=>requestAnimationFrame(()=>t.classList.add('show')));
-  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3000);
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 4000);
 }
-
-// ── SIMULATE LIVE SIGNALS ───────────────────────────────────────────
-function simulateLive(){
-  if(Math.random()>.7){
-    refreshData();
-  }
-}
-
-// ── INIT ─────────────────────────────────────────────────────────────
-initData();
-renderAll();
-setInterval(simulateLive,8000);
-setTimeout(()=>toast('Admin panel connected · Live data streaming','success'),500);
 </script>
 </body>
 </html>

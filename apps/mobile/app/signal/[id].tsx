@@ -1,4 +1,6 @@
 // LOCATION: apps/mobile/app/signal/[id].tsx
+// FIX #5: Added PairChart with TradingView chart + levels tab
+// Shows chart, entry/TP/SL levels, and technical analysis for each pair
 
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
@@ -10,9 +12,9 @@ import { fetchSignalById, explainSignal } from "../../services/api";
 import { useWatchlistStore } from "../../store/useWatchlistStore";
 import { useSignalStore } from "../../store/useSignalStore";
 import ConfidenceBar from "../../components/ConfidenceBar";
+import PairChart from "@/components/PairChart";
 import { Colors } from "../../utils/theme";
 
-// Maps raw confluence strings to human-readable label + icon
 const CONFLUENCE_META: Record<string, { label: string; icon: string; desc: string }> = {
   "Liquidity Sweep":  { icon: "💧", label: "Liquidity Sweep",  desc: "Price swept a key liquidity pool before reversal" },
   "Order Block Tap":  { icon: "🧱", label: "Order Block Tap",  desc: "Price returned to an institutional order block" },
@@ -37,26 +39,24 @@ function parsePair(pair: string) {
 export default function SignalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  // Try to load from store first (avoids network round-trip if already fetched)
   const storeSignal = useSignalStore((s) =>
     s.signals.find((sig) => sig.signal.signal_id === id)?.signal
   );
 
   const { data, isLoading } = useQuery({
-    queryKey: ["signal", id],
-    queryFn:  () => fetchSignalById(id!),
-    enabled:  !!id && !storeSignal, // skip REST call if already in store
+    queryKey:  ["signal", id],
+    queryFn:   () => fetchSignalById(id!),
+    enabled:   !!id && !storeSignal,
     staleTime: 5 * 60_000,
   });
 
   const signal = storeSignal ?? data?.signal;
 
-  // AI explanation — cached by react-query for the session
   const { data: explData, isLoading: explLoading, isError: explError } = useQuery({
-    queryKey: ["signal-explain", id],
-    queryFn:  () => explainSignal(id!),
-    enabled:  !!id && !!signal,
-    staleTime: Infinity, // don't re-fetch explanation within session
+    queryKey:  ["signal-explain", id],
+    queryFn:   () => explainSignal(id!),
+    enabled:   !!id && !!signal,
+    staleTime: Infinity,
     retry: 1,
   });
 
@@ -71,10 +71,7 @@ export default function SignalDetailScreen() {
         "Stop watching this signal?",
         [
           { text: "Cancel", style: "cancel" },
-          {
-            text: "Remove", style: "destructive",
-            onPress: async () => removeFromWatchlist(signal.signal_id),
-          },
+          { text: "Remove", style: "destructive", onPress: async () => removeFromWatchlist(signal.signal_id) },
         ]
       );
     } else {
@@ -113,7 +110,7 @@ export default function SignalDetailScreen() {
     );
   }
 
-  const isBuy = signal.type === "BUY";
+  const isBuy       = signal.type === "BUY";
   const explanation = explData?.explanation ?? signal.ai_explanation ?? null;
 
   return (
@@ -149,7 +146,20 @@ export default function SignalDetailScreen() {
         <ConfidenceBar score={signal.confidence_score} large />
       </View>
 
-      {/* ── Trade params ── */}
+      {/* ── FIX #5: Chart + Levels ── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>CHART & LEVELS</Text>
+        <PairChart
+          pair={signal.pair}
+          entry={signal.entry}
+          stopLoss={signal.stop_loss}
+          takeProfit={signal.take_profit}
+          signalType={signal.type}
+          timeframe={signal.timeframe}
+        />
+      </View>
+
+      {/* ── Trade params grid ── */}
       <View style={styles.priceGrid}>
         {[
           { label: "ENTRY",       value: signal.entry,              color: Colors.text   },
@@ -189,7 +199,7 @@ export default function SignalDetailScreen() {
         </View>
       </View>
 
-      {/* ── Confluences — full labels with descriptions ── */}
+      {/* ── Confluences ── */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>CONFLUENCES ({signal.confluences.length})</Text>
         {signal.confluences.length === 0 ? (
@@ -230,7 +240,6 @@ export default function SignalDetailScreen() {
             </View>
           ) : (
             <>
-              {/* Pair + direction summary header inside box */}
               <View style={styles.analysisMeta}>
                 <Text style={styles.analysisMetaText}>
                   {parsePair(signal.pair)} · {signal.type === "BUY" ? "🟢 Long" : "🔴 Short"} · {signal.confidence_score}% confidence
@@ -253,7 +262,6 @@ export default function SignalDetailScreen() {
             {watched ? "👁 Watching — Tap to Remove" : "👁 Add to Watchlist"}
           </Text>
         </TouchableOpacity>
-
         {watched && (
           <TouchableOpacity
             style={styles.viewWatchlistBtn}
@@ -318,7 +326,6 @@ const styles = StyleSheet.create({
   biasTFValue: { fontSize: 12, color: Colors.text, fontWeight: "700" },
   biasTFSep:   { fontSize: 12, color: Colors.muted },
 
-  // Confluences
   noConfl:  { fontSize: 13, color: Colors.muted, fontStyle: "italic" },
   conflCard: {
     flexDirection: "row", alignItems: "flex-start", gap: 12,
@@ -335,7 +342,6 @@ const styles = StyleSheet.create({
   conflLabel: { fontSize: 14, fontWeight: "700", color: Colors.text, marginBottom: 2 },
   conflDesc:  { fontSize: 12, color: Colors.muted, lineHeight: 18 },
 
-  // AI Analysis
   analysisBox: {
     backgroundColor: Colors.surface, borderWidth: 1,
     borderColor: Colors.accentPurple + "55", borderRadius: 14, padding: 16,
@@ -352,7 +358,6 @@ const styles = StyleSheet.create({
   analysisMetaText: { fontSize: 12, color: Colors.accent, fontWeight: "700", letterSpacing: 0.3 },
   analysisText: { fontSize: 14, color: Colors.text, lineHeight: 24 },
 
-  // Actions
   actions: { paddingHorizontal: 20, gap: 10 },
   watchBtn: {
     backgroundColor: Colors.surface, borderWidth: 1.5,

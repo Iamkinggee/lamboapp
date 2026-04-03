@@ -1,5 +1,8 @@
-// FILE: apps/mobile/app/(tabs)/signals.tsx
 // LOCATION: apps/mobile/app/(tabs)/signals.tsx
+// FIXES:
+//  2. Duplicate signals prevented by dedup in store
+//  6. TP_HIT / SL_HIT coins auto-removed — filtered() only returns ACTIVE
+//  7. Stale signals from previous sessions never shown — purged in setSignals()
 
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
@@ -13,9 +16,6 @@ import SignalCard from "../../components/SignalCard";
 import { Colors } from "../../utils/theme";
 import { fetchSignals } from "../../services/api";
 
-// NOTE: useWebSocket is NOT called here — it runs once in AppCore (_layout.tsx).
-// Calling it here again would register duplicate signal/status handlers.
-
 type Filter = "all" | "BUY" | "SELL" | "high";
 const FILTER_LABELS: Record<Filter, string> = {
   all:  "All",
@@ -25,40 +25,44 @@ const FILTER_LABELS: Record<Filter, string> = {
 };
 
 export default function SignalsScreen() {
-  // Read connection status directly from store — no hook needed
-  const isConnected = useSignalStore((s) => s.isConnected);
-  const setSignals  = useSignalStore((s) => s.setSignals);
-  const addSignals  = useSignalStore((s) => s.addSignals);
-  const markAllRead = useSignalStore((s) => s.markAllRead);
+  const isConnected  = useSignalStore((s) => s.isConnected);
+  const setSignals   = useSignalStore((s) => s.setSignals);
+  const addSignals   = useSignalStore((s) => s.addSignals);
+  const markAllRead  = useSignalStore((s) => s.markAllRead);
+  const clearOld     = useSignalStore((s) => s.clearOld);
   const activeFilter = useSignalStore((s) => s.activeFilter);
   const setFilter    = useSignalStore((s) => s.setFilter);
   const filtered     = useSignalStore((s) => s.filtered());
 
-  // Track if we've done initial load — subsequent fetches merge instead of replace
   const initialLoadDone = useRef(false);
 
   const { refetch, isLoading } = useQuery({
     queryKey: ["signals"],
     queryFn: async () => {
-      const res = await fetchSignals({ limit: 50 });
+      // Fetch a large page to get all active pairs
+      const res = await fetchSignals({ limit: 200 });
       if (res.signals?.length) {
         if (!initialLoadDone.current) {
-          // First load: set as base, don't overwrite WS signals that may have arrived
+          // FIX #7: setSignals internally purges anything older than 24h
+          // so stale tokens from a previous session never appear
           setSignals(res.signals);
           initialLoadDone.current = true;
         } else {
-          // Subsequent pulls: merge — only add signals not already in store
           addSignals(res.signals);
         }
+      } else if (!initialLoadDone.current) {
+        // Even with no signals returned, mark done so we don't spin forever
+        initialLoadDone.current = true;
       }
       return res;
     },
     refetchOnWindowFocus: false,
   });
 
-  // Reset unread badge when this screen mounts
   useEffect(() => {
     markAllRead();
+    // FIX #7: also clear any stale ACTIVE signals lingering in the store
+    clearOld();
   }, []);
 
   const renderSignal = ({ item }: { item: SignalWithStatus }) => (
@@ -103,7 +107,7 @@ export default function SignalsScreen() {
         ))}
       </ScrollView>
 
-      {/* Signal list — only ACTIVE signals appear here */}
+      {/* Signal list — only ACTIVE, non-stale signals */}
       {isLoading && filtered.length === 0 ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator color={Colors.accent} size="large" />
@@ -128,7 +132,7 @@ export default function SignalsScreen() {
               <Text style={styles.emptyIcon}>⚡</Text>
               <Text style={styles.emptyText}>No active signals</Text>
               <Text style={styles.emptySubText}>
-                All current setups have resolved. Waiting for fresh high-probability SMC setups...
+                All current setups have resolved. Waiting for fresh high-probability SMC setups across {150}+ pairs...
               </Text>
             </View>
           }

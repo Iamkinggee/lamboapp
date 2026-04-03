@@ -1,11 +1,16 @@
-// FILE: apps/mobile/app/(tabs)/ai-chat.tsx
+// LOCATION: apps/mobile/app/(tabs)/ai-chat.tsx
+// FIXES:
+//  1. Chat persists across sessions via AsyncStorage
+//  2. Clear Chat button added to header
+//  3. History loaded on mount from storage
 
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ActivityIndicator, ScrollView,
+  ActivityIndicator, ScrollView, Alert,
 } from "react-native";
 import { useState, useRef, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "../../utils/theme";
 import { sendChatMessage } from "../../services/api";
 import { useWatchlistStore } from "../../store/useWatchlistStore";
@@ -18,6 +23,9 @@ type Message = {
   timestamp: number;
 };
 
+const CHAT_STORAGE_KEY = "lambo_chat_history_v2";
+const MAX_STORED_MESSAGES = 100;
+
 const QUICK_ACTIONS = [
   "Analyse my watchlist",
   "Which signal looks strongest?",
@@ -25,13 +33,11 @@ const QUICK_ACTIONS = [
   "What is a liquidity sweep?",
 ];
 
-// ── Build a concise context string from watchlist + recent signals ─────────
 function buildContextPrefix(
   watchlist: ReturnType<typeof useWatchlistStore.getState>["watchlist"],
   activeSignals: ReturnType<typeof useSignalStore.getState>["signals"]
 ): string {
   const parts: string[] = [];
-
   if (watchlist.length > 0) {
     const wlSummary = watchlist.map((w) => {
       const s = w.signal;
@@ -39,7 +45,6 @@ function buildContextPrefix(
     }).join("\n");
     parts.push(`[User's current watchlist — ${watchlist.length} trade(s) being tracked:\n${wlSummary}]`);
   }
-
   const active = activeSignals.filter((s) => s.status === "ACTIVE").slice(0, 5);
   if (active.length > 0) {
     const sigSummary = active.map((s) => {
@@ -48,10 +53,20 @@ function buildContextPrefix(
     }).join("\n");
     parts.push(`[Live signals on the platform right now — ${active.length} active:\n${sigSummary}]`);
   }
-
   return parts.length > 0
     ? `Context (visible only to you as the AI):\n${parts.join("\n\n")}\n\n---\nUser message: `
     : "";
+}
+
+function makeIntroMessage(watchlist: ReturnType<typeof useWatchlistStore.getState>["watchlist"]): Message {
+  let intro = "👋 I'm your SMC trading mentor. I can explain signals, review your watchlisted trades, quiz you on concepts, and help you develop your edge.\n\n";
+  if (watchlist.length > 0) {
+    const pairs = watchlist.map((w) => `${w.signal.pair.replace("USDT", "")}/USDT (${w.signal.type})`).join(", ");
+    intro += `I can see you're currently watching: **${pairs}**.\n\nAsk me anything about these trades or SMC in general.`;
+  } else {
+    intro += "You don't have any signals on your watchlist yet. Add signals from the Signals tab to get trade-specific advice.";
+  }
+  return { id: "intro", role: "assistant", content: intro, timestamp: Date.now() };
 }
 
 const ChatBubble = ({ message }: { message: Message }) => {
@@ -73,46 +88,76 @@ const ChatBubble = ({ message }: { message: Message }) => {
 };
 
 const bubbleStyles = StyleSheet.create({
-  wrap:       { marginVertical: 4, maxWidth: "85%" },
-  userWrap:   { alignSelf: "flex-end" },
-  aiWrap:     { alignSelf: "flex-start" },
-  aiLabel:    { marginBottom: 4, marginLeft: 2 },
-  aiLabelText:{ fontSize: 10, color: Colors.accentPurple, fontWeight: "700", letterSpacing: 1 },
-  bubble:     { padding: 12, borderRadius: 16 },
-  userBubble: { backgroundColor: Colors.accent, borderBottomRightRadius: 4 },
-  aiBubble:   { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 4 },
-  text:       { fontSize: 15, lineHeight: 22 },
-  userText:   { color: "#000", fontWeight: "600" },
-  aiText:     { color: Colors.text },
+  wrap:        { marginVertical: 4, maxWidth: "85%" },
+  userWrap:    { alignSelf: "flex-end" },
+  aiWrap:      { alignSelf: "flex-start" },
+  aiLabel:     { marginBottom: 4, marginLeft: 2 },
+  aiLabelText: { fontSize: 10, color: Colors.accentPurple, fontWeight: "700", letterSpacing: 1 },
+  bubble:      { padding: 12, borderRadius: 16 },
+  userBubble:  { backgroundColor: Colors.accent, borderBottomRightRadius: 4 },
+  aiBubble:    { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 4 },
+  text:        { fontSize: 15, lineHeight: 22 },
+  userText:    { color: "#000", fontWeight: "600" },
+  aiText:      { color: Colors.text },
 });
 
 export default function AiChatScreen() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input,    setInput]    = useState("");
-  const [loading,  setLoading]  = useState(false);
+  const [messages,   setMessages]   = useState<Message[]>([]);
+  const [input,      setInput]      = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [histLoaded, setHistLoaded] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  const watchlist    = useWatchlistStore((s) => s.watchlist);
-  const signalsList  = useSignalStore((s) => s.signals);
+  const watchlist   = useWatchlistStore((s) => s.watchlist);
+  const signalsList = useSignalStore((s) => s.signals);
 
-  // Build context-aware intro message that references the user's watchlist
+  // Load persisted history on mount
   useEffect(() => {
-    let intro = "👋 I'm your SMC trading mentor. I can explain signals, review your watchlisted trades, quiz you on concepts, and help you develop your edge.\n\n";
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(CHAT_STORAGE_KEY);
+        if (stored) {
+          const parsed: Message[] = JSON.parse(stored);
+          if (parsed.length > 0) {
+            setMessages(parsed);
+            setHistLoaded(true);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("[Chat] Failed to load history:", e);
+      }
+      setMessages([makeIntroMessage(watchlist)]);
+      setHistLoaded(true);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    if (watchlist.length > 0) {
-      const pairs = watchlist.map((w) => `${w.signal.pair.replace("USDT", "")}/USDT (${w.signal.type})`).join(", ");
-      intro += `I can see you're currently watching: **${pairs}**.\n\nAsk me anything about these trades or SMC in general.`;
-    } else {
-      intro += "You don't have any signals on your watchlist yet. Add signals from the Signals tab to get trade-specific advice.";
-    }
+  // Persist messages whenever they change
+  useEffect(() => {
+    if (!histLoaded || messages.length === 0) return;
+    const toStore = messages.slice(-MAX_STORED_MESSAGES);
+    AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(toStore)).catch(() => {});
+  }, [messages, histLoaded]);
 
-    setMessages([{
-      id:        "intro",
-      role:      "assistant",
-      content:   intro,
-      timestamp: Date.now(),
-    }]);
-  }, [watchlist.length]);
+  // Clear chat
+  const handleClear = useCallback(() => {
+    Alert.alert(
+      "Clear Chat",
+      "Delete all chat history?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            await AsyncStorage.removeItem(CHAT_STORAGE_KEY);
+            setMessages([makeIntroMessage(watchlist)]);
+          },
+        },
+      ]
+    );
+  }, [watchlist]);
 
   const send = useCallback(async (text: string) => {
     const trimmed = text.trim();
@@ -128,14 +173,11 @@ export default function AiChatScreen() {
     setInput("");
     setLoading(true);
 
-    // ── Inject watchlist + live signal context into message ───────────
-    const contextPrefix = buildContextPrefix(watchlist, signalsList);
+    const contextPrefix      = buildContextPrefix(watchlist, signalsList);
     const messageWithContext = contextPrefix ? `${contextPrefix}${trimmed}` : trimmed;
 
     try {
-      console.log('[Chat] Sending with context. Pairs watched:', watchlist.length);
       const { response } = await sendChatMessage(messageWithContext);
-
       setMessages((prev) => [...prev, {
         id:        (Date.now() + 1).toString(),
         role:      "assistant",
@@ -144,7 +186,6 @@ export default function AiChatScreen() {
       }]);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "";
-      console.error("[Chat] Error:", error);
       setMessages((prev) => [...prev, {
         id:        (Date.now() + 1).toString(),
         role:      "assistant",
@@ -173,39 +214,42 @@ export default function AiChatScreen() {
           <Text style={styles.title}>LamboAI Coach</Text>
           <Text style={styles.subtitle}>
             {watchlist.length > 0
-              ? `Watching ${watchlist.length} trade${watchlist.length > 1 ? "s" : ""}      `
+              ? `Watching ${watchlist.length} trade${watchlist.length > 1 ? "s" : ""}`
               : "Context-aware · SMC expert"}
           </Text>
         </View>
-        {watchlist.length > 0 && (
-          <View style={styles.contextBadge}>
-            <Text style={styles.contextBadgeText}>{watchlist.length} watched</Text>
-          </View>
-        )}
+        <TouchableOpacity onPress={handleClear} style={styles.clearBtn} activeOpacity={0.7}>
+          <Text style={styles.clearBtnText}>Clear</Text>
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ChatBubble message={item} />}
-        contentContainerStyle={styles.messageList}
-        showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        ListFooterComponent={
-          loading ? (
-            <View style={styles.typingWrap}>
-              <View style={styles.typingBubble}>
-                <ActivityIndicator color={Colors.accent} size="small" />
-                <Text style={styles.typingText}>Analysing...</Text>
+      {!histLoaded ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator color={Colors.accent} size="small" />
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <ChatBubble message={item} />}
+          contentContainerStyle={styles.messageList}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          ListFooterComponent={
+            loading ? (
+              <View style={styles.typingWrap}>
+                <View style={styles.typingBubble}>
+                  <ActivityIndicator color={Colors.accent} size="small" />
+                  <Text style={styles.typingText}>Analysing...</Text>
+                </View>
               </View>
-            </View>
-          ) : null
-        }
-      />
+            ) : null
+          }
+        />
+      )}
 
-      {/* Quick actions — shown only when no chat messages yet */}
-      {messages.length <= 1 && (
+      {messages.length <= 1 && histLoaded && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -255,35 +299,36 @@ export default function AiChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:       { flex: 1, backgroundColor: Colors.bg },
-  header:          {
+  container:    { flex: 1, backgroundColor: Colors.bg },
+  header: {
     flexDirection: "row", alignItems: "center", gap: 12,
     paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  aiAvatar:        { width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.accentPurple, alignItems: "center", justifyContent: "center" },
-  aiAvatarText:    { fontSize: 12, fontWeight: "800", color: "#fff" },
-  title:           { fontSize: 18, fontWeight: "800", color: Colors.text },
-  subtitle:        { fontSize: 12, color: Colors.muted, marginTop: 2 },
-  contextBadge:    { backgroundColor: "rgba(0,212,255,0.12)", borderWidth: 1, borderColor: Colors.accent, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  contextBadgeText:{ fontSize: 10, color: Colors.accent, fontWeight: "800" },
-  messageList:     { padding: 16, paddingBottom: 8, gap: 4 },
-  typingWrap:      { paddingLeft: 16, paddingBottom: 8 },
-  typingBubble:    {
+  aiAvatar:     { width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.accentPurple, alignItems: "center", justifyContent: "center" },
+  aiAvatarText: { fontSize: 12, fontWeight: "800", color: "#fff" },
+  title:        { fontSize: 18, fontWeight: "800", color: Colors.text },
+  subtitle:     { fontSize: 12, color: Colors.muted, marginTop: 2 },
+  clearBtn:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
+  clearBtnText: { fontSize: 12, color: Colors.muted, fontWeight: "700" },
+  loadingWrap:  { flex: 1, alignItems: "center", justifyContent: "center" },
+  messageList:  { padding: 16, paddingBottom: 8, gap: 4 },
+  typingWrap:   { paddingLeft: 16, paddingBottom: 8 },
+  typingBubble: {
     flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.surface,
     alignSelf: "flex-start", padding: 12, borderRadius: 16, borderBottomLeftRadius: 4,
     borderWidth: 1, borderColor: Colors.border,
   },
-  typingText:      { fontSize: 13, color: Colors.muted },
-  quickRow:        { maxHeight: 52, marginBottom: 8 },
-  quickChip:       { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: Colors.muted, backgroundColor: "rgba(4, 75, 120, 0.1)" },
-  quickChipText:   { fontSize: 12, color: Colors.muted, fontWeight: "600" },
-  inputRow:        {
+  typingText:   { fontSize: 13, color: Colors.muted },
+  quickRow:     { maxHeight: 52, marginBottom: 8 },
+  quickChip:    { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: Colors.muted, backgroundColor: "rgba(4, 75, 120, 0.1)" },
+  quickChipText:{ fontSize: 12, color: Colors.muted, fontWeight: "600" },
+  inputRow: {
     flexDirection: "row", alignItems: "flex-end", gap: 10,
     paddingHorizontal: 16, paddingBottom: Platform.OS === "ios" ? 34 : 20,
     paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  input:           {
+  input: {
     flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10,
     color: Colors.text, fontSize: 15, maxHeight: 100,
