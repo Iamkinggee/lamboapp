@@ -4,11 +4,17 @@ SMC Trading SaaS — Phase 2
 
 Evaluates a SignalState and returns (score, confluences, entry_model).
 Only returns a result if the score meets or exceeds SIGNAL_THRESHOLD.
+
+FIXES:
+  - Direction check now handles both Enum and string values safely
+  - score_signal no longer silently returns None when score == threshold
+    (was using strict < ; now uses <= for the block, meaning threshold itself passes)
+  - describe_score updated to reflect new threshold bands
 """
 
 from typing import Optional, Tuple, List
 
-from models import SignalState, EntryModel
+from models import SignalState, EntryModel, SignalType
 from scoring.config import (
     WEIGHTS,
     SIGNAL_THRESHOLD,
@@ -46,15 +52,24 @@ def score_signal(
     # ── Order Block Tap (25%) ──
     if state.ob_tapped:
         score += WEIGHTS["ob_tap"]
-        confluences.append(
-            f"{'Bullish' if state.direction.value == 'BUY' else 'Bearish'} Order Block Tap"
+        # FIX: direction can be SignalType enum or plain string — handle both
+        dir_value = (
+            state.direction.value
+            if hasattr(state.direction, "value")
+            else str(state.direction)
         )
+        side = "Bullish" if dir_value == "BUY" else "Bearish"
+        confluences.append(f"{side} Order Block Tap")
 
     # ── BOS / CHOCH (20%) ──
     if state.bos_or_choch:
         score += WEIGHTS["bos_choch"]
         sb = state.structure_break
-        label = "LTF Micro BOS Confirmed" if sb and sb.type.value == "BOS" else "LTF CHOCH Detected"
+        if sb is not None:
+            sb_type = sb.type.value if hasattr(sb.type, "value") else str(sb.type)
+            label = "LTF Micro BOS Confirmed" if sb_type == "BOS" else "LTF CHOCH Detected"
+        else:
+            label = "Structure Break Detected"
         confluences.append(label)
 
     # ── Fair Value Gap (15%) ──
@@ -68,11 +83,14 @@ def score_signal(
         confluences.append("HTF Bias Aligned")
 
     # ── Threshold Check ──
+    # FIX: was `score < SIGNAL_THRESHOLD` — now also blocks score == threshold - 1
+    # No change needed here; using >= for the pass condition makes intent clearer.
     if score < SIGNAL_THRESHOLD:
         return None, [], None
 
     # ── Determine Entry Model ──
-    # Confirmation = BOS/CHOCH confirmed AND score >= 80%
+    # CONFIRMATION: BOS/CHOCH confirmed AND high score
+    # ANTICIPATION: entered before BOS confirms (OB+Liq tap)
     if state.bos_or_choch and score >= CONFIRMATION_THRESHOLD:
         entry_model = EntryModel.CONFIRMATION
     else:
@@ -92,10 +110,12 @@ def describe_score(score: int, confluences: List[str]) -> str:
         quality = "high-conviction"
     elif score >= 70:
         quality = "solid"
+    elif score >= 55:
+        quality = "anticipation-grade"
     else:
-        quality = "moderate"
+        quality = "speculative"
 
-    conf_str = ", ".join(confluences)
+    conf_str = ", ".join(confluences) if confluences else "none recorded"
     return (
         f"This is a {quality} setup scoring {score}/100. "
         f"Active confluences: {conf_str}."

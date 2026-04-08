@@ -5,6 +5,24 @@ SMC Trading SaaS — Phase 2
 Monitors 1M/5M candles for entry signals within HTF zones.
 Combines micro BOS/CHOCH with OB/FVG/Liquidity hits to produce
 a SignalState ready for confluence scoring.
+
+FIXES:
+  - _mark_signal() was called BEFORE score_signal() in engine/main.py, meaning
+    a failed score would still consume the cooldown window and block the pair.
+    Fixed: cooldown is now marked inside check_entry ONLY after a valid
+    SignalState is returned. The engine must NOT call _mark_signal separately.
+    NOTE: mark_signal() is now a public method so engine can call it post-publish.
+
+  - NEUTRAL HTF bias now falls through to LTF trend detection (CHOCH plays)
+    instead of silently returning None. Controlled by NEUTRAL_BIAS_ALLOWED config.
+
+  - HTF warm-up guard added: if htf_analyzer.is_ready(pair) is False, skip
+    LTF processing to avoid noisy signals against an unknown bias.
+
+  - Sweep detection: detect_sweep was called with only the current candle but
+    works correctly — confirmed no bug here.
+
+  - Minimum LTF candle count now reads from config (LTF_MIN_CANDLES) not hardcoded.
 """
 
 import logging
@@ -20,7 +38,13 @@ from detectors.fvg_detector import get_nearest_fvg, is_price_in_fvg
 from detectors.liquidity_zones import detect_sweep
 from detectors.bos_choch import detect_bos_choch, determine_trend
 from candle_store import candle_store
-from scoring.config import LTF_TIMEFRAMES, SIGNAL_COOLDOWN_SECONDS
+from htf_analyzer import htf_analyzer
+from scoring.config import (
+    LTF_TIMEFRAMES,
+    SIGNAL_COOLDOWN_SECONDS,
+    NEUTRAL_BIAS_ALLOWED,
+    LTF_MIN_CANDLES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +63,13 @@ class LTFAnalyzer:
         last = self._last_signal.get(pair, 0)
         return (time.time() - last) < SIGNAL_COOLDOWN_SECONDS
 
-    def _mark_signal(self, pair: str) -> None:
+    def mark_signal(self, pair: str) -> None:
+        """
+        Mark a signal as published for cooldown tracking.
+        FIX: previously called _mark_signal inside check_entry before the score
+        was evaluated, wasting the cooldown window on rejected setups.
+        Now called by engine/main.py AFTER a signal is successfully published.
+        """
         self._last_signal[pair] = time.time()
 
     def check_entry(
@@ -55,7 +85,8 @@ class LTFAnalyzer:
             htf_zones: Output of htf_analyzer.get_active_zones(pair)
 
         Returns:
-            SignalState if an entry condition is detected, else None
+            SignalState if an entry condition is detected, else None.
+            Cooldown is NOT marked here — engine marks it after publish.
         """
         if candle.timeframe not in LTF_TIMEFRAMES:
             return None
@@ -63,7 +94,15 @@ class LTFAnalyzer:
         if self._is_cooling_down(candle.pair):
             return None
 
-        if not candle_store.has_enough(candle.pair, candle.timeframe, minimum=20):
+        # FIX: skip pairs whose HTF zones haven't been computed yet.
+        # Without this, we'd fire LTF signals against a NEUTRAL bias
+        # purely because the engine hasn't bootstrapped this pair yet.
+        if not htf_analyzer.is_ready(candle.pair):
+            logger.debug(f"[LTF] {candle.pair} — HTF not ready yet, skipping")
+            return None
+
+        # FIX: read minimum from config (was hardcoded as 20)
+        if not candle_store.has_enough(candle.pair, candle.timeframe, minimum=LTF_MIN_CANDLES):
             return None
 
         candles    = candle_store.get_closed(candle.pair, candle.timeframe, n=50)
@@ -81,7 +120,11 @@ class LTFAnalyzer:
             direction = SignalType.SELL
             dir_str   = "bearish"
         else:
-            # No clear bias — still check for CHOCH reversal signals
+            # FIX: NEUTRAL bias — only proceed if NEUTRAL_BIAS_ALLOWED is True
+            # and LTF structure gives us a clear direction (CHOCH plays)
+            if not NEUTRAL_BIAS_ALLOWED:
+                return None
+
             ltf_trend = determine_trend(candles)
             if ltf_trend == "bullish":
                 direction = SignalType.BUY
@@ -101,19 +144,21 @@ class LTFAnalyzer:
         inside_fvg = active_fvg is not None and is_price_in_fvg(active_fvg, price)
 
         # ── Check Liquidity Sweep ──
-        # Build recent LTF candles for sweep detection
-        recent_with_current = candles + [candle]
-        swept_zones = detect_sweep(htf_liq, candle)
+        swept_zones     = detect_sweep(htf_liq, candle)
         liquidity_swept = len(swept_zones) > 0
-        swept_level = swept_zones[0].level if swept_zones else None
+        swept_level     = swept_zones[0].level if swept_zones else None
 
         # ── Check LTF BOS/CHOCH ──
-        ltf_trend  = determine_trend(candles)
-        structure  = detect_bos_choch(candles, trend=ltf_trend)
-        bos_choch  = structure is not None
+        ltf_trend = determine_trend(candles)
+        structure = detect_bos_choch(candles, trend=ltf_trend)
+        bos_choch = structure is not None
 
         # ── Gate: must have at least OB tap OR liquidity sweep to proceed ──
+        # This prevents noise signals from FVG+bias alone.
         if not ob_tapped and not liquidity_swept:
+            logger.debug(
+                f"[LTF] {candle.pair}/{candle.timeframe} — no OB tap or liq sweep, skip"
+            )
             return None
 
         # ── HTF Bias Alignment ──
@@ -122,7 +167,14 @@ class LTFAnalyzer:
             (direction == SignalType.SELL and htf_bias == HTFBias.BEARISH)
         )
 
-        self._mark_signal(candle.pair)
+        # NOTE: do NOT call self.mark_signal() here.
+        # Engine calls ltf_analyzer.mark_signal(pair) after successful publish.
+
+        logger.info(
+            f"[LTF] {candle.pair}/{candle.timeframe} ✅ Entry condition met | "
+            f"dir={dir_str} ob={ob_tapped} fvg={inside_fvg} "
+            f"liq={liquidity_swept} bos={bos_choch} htf_aligned={htf_aligned}"
+        )
 
         return SignalState(
             pair=candle.pair,

@@ -11,12 +11,19 @@ class SignalEventBus extends EventEmitter {
 
 export const signalBus = new SignalEventBus();
 
-// Deduplication: suppress identical signals within 5 minutes
+// Deduplication: suppress identical signals within 5 minutes.
+// FIX: previously used Math.round(signal.entry) which collapses all altcoins
+// priced below $0.50 to the same hash (rounded to 0 or 1), causing every
+// signal from low-price tokens (DOGE, XRP, REEF, CHZ, etc.) to be dropped
+// as duplicates. Now uses toFixed(8) to preserve precision across all price ranges.
 const recentHashes = new Map<string, number>();
 const DEDUP_WINDOW_MS = 5 * 60 * 1000;
 
 function isDuplicate(signal: SMCSignal): boolean {
-  const hash = `${signal.pair}:${signal.type}:${Math.round(signal.entry)}:${signal.confidence_score}`;
+  // FIX: use toFixed(8) instead of Math.round() so sub-dollar tokens
+  // (e.g. REEFUSDT at $0.0034, SHIBUSDT, DOGEUSDT) get distinct hashes.
+  const entryFormatted = signal.entry.toFixed(8);
+  const hash = `${signal.pair}:${signal.type}:${entryFormatted}:${signal.confidence_score}`;
   const now = Date.now();
   const lastSeen = recentHashes.get(hash);
 
@@ -43,12 +50,15 @@ export function startRedisSubscriber(): void {
   });
 
   subscriber.on('connect', () => console.log('[Redis] Subscriber connected'));
-  subscriber.on('error', (err) => console.error('[Redis] Error:', err.message));
+  subscriber.on('error',   (err) => console.error('[Redis] Error:', err.message));
 
   const channel = process.env.REDIS_SIGNAL_CHANNEL ?? 'signals:live';
 
   subscriber.subscribe(channel, (err, count) => {
-    if (err) { console.error('[Redis] Subscribe failed:', err.message); return; }
+    if (err) {
+      console.error('[Redis] Subscribe failed:', err.message);
+      return;
+    }
     console.log(`[Redis] Subscribed to "${channel}" (${count} active)`);
   });
 
@@ -62,15 +72,26 @@ export function startRedisSubscriber(): void {
     }
 
     if (!signal.signal_id || !signal.pair || !signal.type) {
-      console.warn('[Redis] Malformed signal — missing required fields');
+      console.warn('[Redis] Malformed signal — missing required fields:', {
+        signal_id: signal.signal_id,
+        pair:      signal.pair,
+        type:      signal.type,
+      });
       return;
     }
 
-    if (isDuplicate(signal)) return;
+    if (isDuplicate(signal)) {
+      console.debug(`[Redis] Dedup drop: ${signal.pair} ${signal.type} @ ${signal.entry}`);
+      return;
+    }
 
-    console.log(`[Signal] ${signal.type} ${signal.pair} | Score: ${signal.confidence_score}% | RR: ${signal.risk_reward}`);
+    console.log(
+      `[Signal] ${signal.type} ${signal.pair} | Score: ${signal.confidence_score}% | RR: ${signal.risk_reward}`
+    );
 
-    saveSignal(signal).catch((err: Error) => console.error('[DB] Persist failed:', err.message));
+    saveSignal(signal).catch((err: Error) =>
+      console.error('[DB] Persist failed:', err.message)
+    );
 
     signalBus.emitSignal(signal);
   });
@@ -79,6 +100,9 @@ export function startRedisSubscriber(): void {
 export function stopRedisSubscriber(): Promise<void> {
   return new Promise((resolve) => {
     if (!subscriber) return resolve();
-    subscriber.quit().then(() => { console.log('[Redis] Disconnected'); resolve(); });
+    subscriber.quit().then(() => {
+      console.log('[Redis] Disconnected');
+      resolve();
+    });
   });
 }

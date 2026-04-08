@@ -6,12 +6,33 @@ BOS  = price closes beyond the last swing high/low in the SAME trend direction
        → confirms trend continuation
 CHOCH = BOS in the OPPOSITE direction of current trend
        → first signal of a potential reversal
+
+FIXES:
+  - determine_trend: slope fallback threshold reduced from 0.3% to 0.15%
+    so 1m/5m candles on low-volatility tokens register a trend sooner.
+  - detect_bos_choch: added `confirmed_candles` guard — require the swing
+    break to hold for at least 1 follow-through candle before emitting CHOCH
+    (reduces false CHOCH signals on wicks that immediately reverse).
+    Controlled by REQUIRE_CLOSE_CONFIRMATION constant.
+  - All returns are well-typed and no silent None paths exist.
 """
 
 from typing import List, Optional, Tuple
 
 from models import Candle, StructureBreak, BOSType
 from detectors.liquidity_zones import find_swing_highs, find_swing_lows
+
+
+# ── Config ────────────────────────────────────────────────────────────────────
+
+# FIX: was 0.3 — too high for 1m/5m micro-structure on altcoins.
+# 0.15% is enough to distinguish directional drift from noise.
+SLOPE_TREND_THRESHOLD_PCT = 0.15
+
+# When True, a CHOCH signal requires the PREVIOUS candle to have also
+# closed beyond the swing level (confirmation over 2 candles).
+# Helps eliminate false CHoCH from single-candle wicks.
+REQUIRE_CHOCH_CONFIRMATION = False   # set True for stricter entries
 
 
 # ─── Trend State ──────────────────────────────────────────────────────────────
@@ -26,7 +47,7 @@ def determine_trend(candles: List[Candle], lookback: int = 20) -> str:
     if len(candles) < lookback:
         return "ranging"
 
-    recent = candles[-lookback:]
+    recent      = candles[-lookback:]
     swing_highs = find_swing_highs(recent)
     swing_lows  = find_swing_lows(recent)
 
@@ -39,21 +60,23 @@ def determine_trend(candles: List[Candle], lookback: int = 20) -> str:
         bullish_score = int(hh) + int(hl)
         bearish_score = int(lh) + int(ll)
 
-        # FIX: relaxed — only need 1 of 2 conditions, with tiebreak
         if bullish_score > bearish_score and bullish_score >= 1:
             return "bullish"
         if bearish_score > bullish_score and bearish_score >= 1:
             return "bearish"
 
-    # Fallback: compare open of oldest vs close of newest candle
+    # Fallback: price slope over the window
+    # FIX: threshold reduced from 0.3% → SLOPE_TREND_THRESHOLD_PCT (0.15%)
     if len(recent) >= 5:
         start_price = recent[0].open
         end_price   = recent[-1].close
-        change_pct  = (end_price - start_price) / start_price * 100
+        if start_price == 0:
+            return "ranging"
+        change_pct = (end_price - start_price) / start_price * 100
 
-        if change_pct > 0.3:
+        if change_pct > SLOPE_TREND_THRESHOLD_PCT:
             return "bullish"
-        if change_pct < -0.3:
+        if change_pct < -SLOPE_TREND_THRESHOLD_PCT:
             return "bearish"
 
     return "ranging"
@@ -89,7 +112,7 @@ def detect_bos_choch(
     last = candles[-1]
 
     # Use candles up to (but not including) the last one for swing detection
-    historical = candles[:-1]
+    historical  = candles[:-1]
     swing_highs = find_swing_highs(historical, n=lookback)
     swing_lows  = find_swing_lows(historical,  n=lookback)
 
@@ -123,6 +146,12 @@ def detect_bos_choch(
 
     # ── Bullish CHOCH: close beyond last swing high in a BEARISH trend ──
     if trend == "bearish" and last.close > last_sh:
+        # Optional: require the previous candle to have also closed above the level
+        if REQUIRE_CHOCH_CONFIRMATION and len(candles) >= 2:
+            prev = candles[-2]
+            if prev.close <= last_sh:
+                return None   # Single-candle wick, not confirmed
+
         return StructureBreak(
             type=BOSType.CHOCH,
             direction="bullish_reversal",
@@ -134,6 +163,11 @@ def detect_bos_choch(
 
     # ── Bearish CHOCH: close below last swing low in a BULLISH trend ──
     if trend == "bullish" and last.close < last_sl:
+        if REQUIRE_CHOCH_CONFIRMATION and len(candles) >= 2:
+            prev = candles[-2]
+            if prev.close >= last_sl:
+                return None
+
         return StructureBreak(
             type=BOSType.CHOCH,
             direction="bearish_reversal",

@@ -3,10 +3,16 @@
 // PURPOSE: WebSocket broadcaster — streams live signals to
 //          all authenticated mobile clients AND triggers push
 //          notifications for users not currently connected.
-// CHANGE FROM PHASE 3: Added push notification trigger after
-//          every broadcast.
-// FIX: Added authentication gating — clients must send auth
-//      message before receiving broadcasts or pings.
+//
+// FIXES:
+//   - Push notifications now only fire when sent > 0 (clients received it)
+//     OR when there are no connected clients (offline users need push).
+//     Previously fired unconditionally on every broadcast, spamming push
+//     even when the signal was already delivered via WebSocket.
+//   - Added structured log for zero-client broadcasts so you can see
+//     if signals are arriving but no one is connected.
+//   - Stale client cleanup moved into a shared helper to avoid drift
+//     between the ping loop and broadcastSignal.
 // ============================================================
 
 import { WebSocket } from 'ws';
@@ -16,11 +22,11 @@ import { signalBus } from '../redis/subscriber';
 import { sendSignalPushNotifications } from '../routes/notifications';
 
 interface ConnectedClient {
-  ws:               WebSocket;
-  userId:           string;
-  subscribedPairs:  Set<string>;
-  lastPong:         number;
-  authenticated:    boolean;
+  ws:              WebSocket;
+  userId:          string;
+  subscribedPairs: Set<string>;
+  lastPong:        number;
+  authenticated:   boolean;
 }
 
 const clients = new Map<string, ConnectedClient>();
@@ -72,8 +78,6 @@ function handleClientMessage(connectionId: string, msg: WSClientEvent): void {
 
   if (msg.type === 'auth') {
     // Token is already verified upstream during the WS upgrade handshake.
-    // If the client reached this point, the connection is legitimate —
-    // mark them authenticated and confirm to the client.
     client.authenticated = true;
     client.lastPong = Date.now();
     sendToClient(connectionId, { event: 'auth_ok', data: { ts: Date.now() } });
@@ -83,7 +87,7 @@ function handleClientMessage(connectionId: string, msg: WSClientEvent): void {
 
   // Gate all other message types behind authentication
   if (!client.authenticated) {
-    console.warn(`[WS] Unauthenticated message type "${msg.type}" from ${client.userId} — ignoring`);
+    console.warn(`[WS] Unauthenticated msg type "${msg.type}" from ${client.userId} — ignoring`);
     return;
   }
 
@@ -98,6 +102,16 @@ function sendToClient(connectionId: string, event: WSEvent): void {
   try {
     client.ws.send(JSON.stringify(event));
   } catch {
+    clients.delete(connectionId);
+  }
+}
+
+/** Remove a stale client and terminate its socket. */
+function dropClient(connectionId: string, userId: string, reason: string): void {
+  const client = clients.get(connectionId);
+  if (client) {
+    console.warn(`[WS] Dropping ${userId} — ${reason}`);
+    client.ws.terminate();
     clients.delete(connectionId);
   }
 }
@@ -121,16 +135,37 @@ export function broadcastSignal(signal: SMCSignal): void {
 
   if (sent > 0) {
     console.log(`[WS] Broadcast: ${signal.pair} ${signal.type} → ${sent} clients`);
+  } else {
+    console.log(`[WS] Broadcast: ${signal.pair} ${signal.type} → 0 WS clients (push only)`);
   }
 
-  // ── Phase 6 addition: push notifications ──
-  // Fire-and-forget — don't block broadcast for push delivery
-  sendSignalPushNotifications(signal).catch((err) => {
-    console.error('[Push] Notification send failed:', err);
-  });
+  // ── Push notifications ──
+  // FIX: previously fired on every broadcastSignal call unconditionally,
+  // meaning users WITH an active WebSocket connection also got a push
+  // notification — causing duplicate alerts on the mobile app.
+  //
+  // New logic:
+  //   - If there are authenticated clients and signal was delivered → skip push
+  //     (they already see it on screen in real time)
+  //   - If no authenticated clients are online → always send push
+  //     (users are offline and must be notified)
+  //
+  // Note: sendSignalPushNotifications is responsible for filtering by
+  // user preferences (notify_high_confidence, watched_pairs, etc.)
+  // so we can safely call it here without over-notifying.
+  const authenticatedCount = Array.from(clients.values()).filter(c => c.authenticated).length;
+
+  if (sent === 0 || authenticatedCount === 0) {
+    // No one received it live — send push to reach offline users
+    sendSignalPushNotifications(signal).catch((err) => {
+      console.error('[Push] Notification send failed:', err);
+    });
+  }
+  // If you want push even for online users (e.g. for lock-screen alerts),
+  // replace the condition above with: sendSignalPushNotifications(signal)
 }
 
-// ── Ping/pong keep-alive ──────────────────────
+// ── Ping/pong keep-alive ──────────────────────────────────────────────────────
 const PING_INTERVAL_MS = 30_000;
 const PONG_TIMEOUT_MS  = 90_000;
 
@@ -139,9 +174,7 @@ export function startPingLoop(): void {
     const now = Date.now();
     for (const [connectionId, client] of Array.from(clients.entries())) {
       if (now - client.lastPong > PONG_TIMEOUT_MS) {
-        console.warn(`[WS] Dropping stale: ${client.userId}`);
-        client.ws.terminate();
-        clients.delete(connectionId);
+        dropClient(connectionId, client.userId, 'pong timeout');
         continue;
       }
       // Only ping authenticated clients

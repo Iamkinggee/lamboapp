@@ -13,7 +13,15 @@ from publisher import RedisPublisher
 from risk_manager import RiskManager
 from models import Signal
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+# FIX: import cooldown constant from config — single source of truth.
+# Previously engine hardcoded 300s while config said 60s. Engine was winning
+# and blocking pairs for 5 minutes, silently killing re-entry signals.
+from scoring.config import ENGINE_SIGNAL_COOLDOWN_SEC
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 log = logging.getLogger("engine.main")
 
 DEFAULT_PAIRS = (
@@ -34,15 +42,26 @@ DEFAULT_PAIRS = (
 PAIRS            = [p.strip() for p in os.getenv("TRADING_PAIRS", DEFAULT_PAIRS).split(",") if p.strip()]
 HTF_TF           = ["1h", "4h"]
 LTF_TF           = ["1m", "5m"]
-MIN_RR           = float(os.getenv("MIN_RR", "2.0"))
-SIGNAL_COOLDOWN  = int(os.getenv("SIGNAL_COOLDOWN_SEC", "300"))
-MIN_LTF_CANDLES  = 20   # FIX: was 50 — too high for early live candles
+
+# FIX: MIN_RR now reads from config via env, defaulting to 1.5 (was 2.0).
+# A 2.0 RR filter is too aggressive for many valid SMC setups.
+MIN_RR           = float(os.getenv("MIN_RR", "1.5"))
+
+# FIX: SIGNAL_COOLDOWN now reads from config constant, not a separate hardcoded value.
+# Both engine-level and ltf_analyzer-level cooldowns are now in sync at 90s.
+SIGNAL_COOLDOWN  = int(os.getenv("SIGNAL_COOLDOWN_SEC", str(ENGINE_SIGNAL_COOLDOWN_SEC)))
+
+MIN_LTF_CANDLES  = 20
 MIN_HTF_CANDLES  = 100
 WS_BATCH_SIZE    = 200
 SEED_CONCURRENCY = 10
 
 risk_manager    = RiskManager(min_rr=MIN_RR)
 publisher       = RedisPublisher()
+
+# FIX: last_published is still here as a secondary engine-level guard to prevent
+# the same pair from double-publishing within a single event loop tick.
+# But it now uses SIGNAL_COOLDOWN (90s) instead of the old hardcoded 300s.
 last_published: dict[str, float] = {}
 
 
@@ -53,11 +72,14 @@ async def on_kline(candle) -> None:
 
         if not candle.is_closed:
             return
+
         if tf in HTF_TF:
             htf_analyzer.process_closed_candle(candle)
             return
+
         if tf not in LTF_TF:
             return
+
         if not candle_store.has_enough(pair, tf, minimum=MIN_LTF_CANDLES):
             return
 
@@ -69,6 +91,13 @@ async def on_kline(candle) -> None:
             f"OBs={len(htf_zones.get('obs', []))} FVGs={len(htf_zones.get('fvgs', []))} "
             f"Liq={len(htf_zones.get('liq', []))}"
         )
+
+        # FIX: engine-level cooldown check — keeps the per-pair publish rate sane
+        # without relying solely on ltf_analyzer's internal cooldown.
+        now = time.time()
+        if now - last_published.get(pair, 0) < SIGNAL_COOLDOWN:
+            log.debug(f"[{pair}] Engine-level cooldown active — skipping")
+            return
 
         ltf_state = ltf_analyzer.check_entry(candle, htf_zones)
 
@@ -91,11 +120,6 @@ async def on_kline(candle) -> None:
             log.debug(f"[{pair}/{tf}] score=None — rejected by confluence engine")
             return
 
-        now = time.time()
-        if now - last_published.get(pair, 0) < SIGNAL_COOLDOWN:
-            log.debug(f"[{pair}] Cooldown active — skipping")
-            return
-
         htf_bias = htf_analyzer.get_bias(pair)
         sig = Signal.from_state(ltf_state, score, confluences, pair, tf, htf_bias, entry_model)
         sig = risk_manager.calculate_sl_tp(sig, htf_zones)
@@ -105,8 +129,14 @@ async def on_kline(candle) -> None:
             return
 
         await publisher.publish(sig)
+
+        # FIX: mark cooldown AFTER successful publish, not before scoring.
+        # Previously ltf_analyzer._mark_signal() was called inside check_entry()
+        # which consumed the cooldown even when the score failed threshold.
         last_published[pair] = now
-        log.info(f"📡 Signal fired: {pair} {sig.type} conf={score}% RR={sig.risk_reward}")
+        ltf_analyzer.mark_signal(pair)  # sync ltf_analyzer's internal tracker too
+
+        log.info(f"📡 Signal fired: {pair} {sig.type} conf={score}% RR={sig.risk_reward:.2f}")
 
     except Exception as exc:
         log.error(f"Error in on_kline: {exc}", exc_info=True)
@@ -126,7 +156,10 @@ async def seed_all(pairs):
         if completed % 50 == 0 or completed == total:
             log.info(f"  Seeding: {completed}/{total} ({int(completed/total*100)}%)")
 
-    await asyncio.gather(*[seed_one(p, tf) for p in pairs for tf in HTF_TF + LTF_TF], return_exceptions=True)
+    await asyncio.gather(
+        *[seed_one(p, tf) for p in pairs for tf in HTF_TF + LTF_TF],
+        return_exceptions=True
+    )
 
 
 async def bootstrap_htf(pairs):
@@ -160,12 +193,13 @@ async def main() -> None:
 
     await publisher.connect()
 
-    log.info(f"⏳ Seeding {len(PAIRS)} pairs × {len(HTF_TF+LTF_TF)} tfs = {len(PAIRS)*len(HTF_TF+LTF_TF)} calls...")
+    log.info(f"⏳ Seeding {len(PAIRS)} pairs × {len(HTF_TF+LTF_TF)} tfs...")
     await seed_all(PAIRS)
     log.info("✅ Seeding complete")
 
     log.info("⏳ Bootstrapping HTF zones...")
     await bootstrap_htf(PAIRS)
+    log.info("✅ Bootstrap complete — engine going live")
 
     stop = asyncio.Event()
 
@@ -173,18 +207,21 @@ async def main() -> None:
         log.info("Shutdown received")
         stop.set()
 
-    _signal.signal(_signal.SIGINT, _shutdown)
+    _signal.signal(_signal.SIGINT,  _shutdown)
     _signal.signal(_signal.SIGTERM, _shutdown)
 
     batches  = [PAIRS[i:i+WS_BATCH_SIZE] for i in range(0, len(PAIRS), WS_BATCH_SIZE)]
-    log.info(f"🚀 Starting {len(batches)} WS connection(s) for {len(PAIRS)} pairs — LIVE")
+    log.info(f"🚀 Starting {len(batches)} WS connection(s) — LIVE")
 
     clients  = [BinanceWSClient(pairs=b, timeframes=HTF_TF+LTF_TF) for b in batches]
     ws_tasks = [asyncio.create_task(c.start(on_kline)) for c in clients]
     hb_task  = asyncio.create_task(publisher.heartbeat(stop))
     st_task  = asyncio.create_task(stop.wait())
 
-    done, pending = await asyncio.wait(ws_tasks + [hb_task, st_task], return_when=asyncio.FIRST_COMPLETED)
+    done, pending = await asyncio.wait(
+        ws_tasks + [hb_task, st_task],
+        return_when=asyncio.FIRST_COMPLETED
+    )
 
     for task in pending:
         task.cancel()
