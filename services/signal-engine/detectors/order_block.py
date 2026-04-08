@@ -7,7 +7,7 @@ Identifies institutional Order Blocks:
   - Bearish OB: last bullish candle before a strong bearish impulse
 
 OB is only valid if:
-  1. The following impulse body ≥ impulse_mult × average body (last 10 candles)
+  1. The following impulse body >= impulse_mult x average body (last 10 candles)
   2. The OB has NOT been fully mitigated (price closed 50%+ into the zone)
 """
 
@@ -19,10 +19,12 @@ from models import Candle, OrderBlock, ZoneType
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-IMPULSE_MULT    = 1.5   # Impulse body must be >= 1.5x avg body
-AVG_BODY_LOOKBACK = 10  # Candles used to calculate average body
-MAX_OB_AGE      = 200   # Discard OBs older than N candles
-OB_MITIGATION_PCT = 0.50  # 50% penetration = mitigated
+IMPULSE_MULT      = 1.5    # Impulse body must be >= 1.5x avg body
+AVG_BODY_LOOKBACK = 10     # Candles used to calculate average body
+MAX_OB_AGE        = 200    # Discard OBs older than N candles
+OB_MITIGATION_PCT = 0.50   # 50% penetration = mitigated
+# FIX: was 0.5% — way too tight. Now 3% to capture realistic OB approaches.
+MAX_OB_DISTANCE_PCT = 3.0
 
 
 # ─── Core Functions ───────────────────────────────────────────────────────────
@@ -96,12 +98,10 @@ def update_mitigation(obs: List[OrderBlock], latest_candle: Candle) -> List[Orde
         mid = ob.midpoint
 
         if ob.type == ZoneType.BULLISH_OB:
-            # Mitigated if price closes below the 50% level of OB
             if latest_candle.close < mid:
                 ob.mitigated = True
                 continue
         else:  # BEARISH_OB
-            # Mitigated if price closes above the 50% level of OB
             if latest_candle.close > mid:
                 ob.mitigated = True
                 continue
@@ -119,7 +119,7 @@ def get_nearest_ob(
     obs: List[OrderBlock],
     price: float,
     direction: str,
-    max_distance_pct: float = 0.5,
+    max_distance_pct: float = MAX_OB_DISTANCE_PCT,  # FIX: was hardcoded 0.5
 ) -> Optional[OrderBlock]:
     """
     Find the nearest valid OB to current price within max_distance_pct.
@@ -134,7 +134,6 @@ def get_nearest_ob(
         return None
 
     def distance(ob: OrderBlock) -> float:
-        # Distance from price to nearest edge of the OB
         if price > ob.top:
             return ((price - ob.top) / price) * 100
         elif price < ob.bottom:

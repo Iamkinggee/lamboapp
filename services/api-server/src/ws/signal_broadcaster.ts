@@ -5,6 +5,8 @@
 //          notifications for users not currently connected.
 // CHANGE FROM PHASE 3: Added push notification trigger after
 //          every broadcast.
+// FIX: Added authentication gating — clients must send auth
+//      message before receiving broadcasts or pings.
 // ============================================================
 
 import { WebSocket } from 'ws';
@@ -18,6 +20,7 @@ interface ConnectedClient {
   userId:           string;
   subscribedPairs:  Set<string>;
   lastPong:         number;
+  authenticated:    boolean;
 }
 
 const clients = new Map<string, ConnectedClient>();
@@ -38,6 +41,7 @@ export function registerClient(
     userId,
     subscribedPairs: new Set(),
     lastPong: Date.now(),
+    authenticated: false,
   });
 
   console.log(`[WS] Client connected: ${userId} (${connectionId}) — Total: ${clients.size}`);
@@ -59,12 +63,29 @@ export function registerClient(
     clients.delete(connectionId);
   });
 
-  sendToClient(connectionId, { event: 'ping', data: { ts: Date.now() } });
+  // Do NOT send ping immediately — wait for client to authenticate first
 }
 
 function handleClientMessage(connectionId: string, msg: WSClientEvent): void {
   const client = clients.get(connectionId);
   if (!client) return;
+
+  if (msg.type === 'auth') {
+    // Token is already verified upstream during the WS upgrade handshake.
+    // If the client reached this point, the connection is legitimate —
+    // mark them authenticated and confirm to the client.
+    client.authenticated = true;
+    client.lastPong = Date.now();
+    sendToClient(connectionId, { event: 'auth_ok', data: { ts: Date.now() } });
+    console.log(`[WS] Auth OK: ${client.userId} (${connectionId})`);
+    return;
+  }
+
+  // Gate all other message types behind authentication
+  if (!client.authenticated) {
+    console.warn(`[WS] Unauthenticated message type "${msg.type}" from ${client.userId} — ignoring`);
+    return;
+  }
 
   if (msg.type === 'pong')        { client.lastPong = Date.now(); return; }
   if (msg.type === 'subscribe')   { msg.pairs.forEach((p) => client.subscribedPairs.add(p.toUpperCase())); return; }
@@ -86,6 +107,9 @@ export function broadcastSignal(signal: SMCSignal): void {
   let sent = 0;
 
   for (const [connectionId, client] of Array.from(clients.entries())) {
+    // Only broadcast to authenticated clients
+    if (!client.authenticated) continue;
+
     if (
       client.subscribedPairs.size === 0 ||
       client.subscribedPairs.has(signal.pair.toUpperCase())
@@ -120,7 +144,10 @@ export function startPingLoop(): void {
         clients.delete(connectionId);
         continue;
       }
-      sendToClient(connectionId, { event: 'ping', data: { ts: now } });
+      // Only ping authenticated clients
+      if (client.authenticated) {
+        sendToClient(connectionId, { event: 'ping', data: { ts: now } });
+      }
     }
   }, PING_INTERVAL_MS);
 }

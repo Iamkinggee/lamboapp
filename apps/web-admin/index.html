@@ -215,7 +215,7 @@ select.form-input{cursor:pointer;}
     <div class="login-sub">SMC Trading — Admin Dashboard</div>
     <div class="form-row">
       <label class="form-label">API URL</label>
-      <input class="form-input" id="login-url" value="http://13.40.3.171:3001" placeholder="http://your-server:3001"/>
+      <input class="form-input" id="login-url" value="http://141.147.45.183:3001" placeholder="http://your-server:3001"/>
     </div>
     <div class="form-row">
       <label class="form-label">ADMIN SECRET KEY</label>
@@ -499,7 +499,8 @@ select.form-input{cursor:pointer;}
 // ══════════════════════════════════════════════
 //  CONFIG & STATE
 // ══════════════════════════════════════════════
-let API_URL    = localStorage.getItem('admin_url') ?? 'http://13.40.3.171:3001';
+
+let API_URL = localStorage.getItem('admin_url') ?? 'http://141.147.45.183:8001';
 let ADMIN_KEY  = localStorage.getItem('admin_key') ?? '';
 let isLoggedIn = false;
 

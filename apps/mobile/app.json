@@ -27,6 +27,7 @@
         "backgroundColor": "#0A0A1A"
       },
       "package": "com.osejie.lamboapp",
+      "usesCleartextTraffic": true,
       "permissions": [
         "NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",

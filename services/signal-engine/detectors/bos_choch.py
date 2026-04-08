@@ -18,7 +18,9 @@ from detectors.liquidity_zones import find_swing_highs, find_swing_lows
 
 def determine_trend(candles: List[Candle], lookback: int = 20) -> str:
     """
-    Simple trend determination using Higher Highs / Higher Lows.
+    Trend determination using Higher Highs / Higher Lows with relaxed logic.
+    Only requires ONE of HH or HL (bullish), or LH or LL (bearish).
+    Falls back to price slope if swings are insufficient.
     Returns: "bullish" | "bearish" | "ranging"
     """
     if len(candles) < lookback:
@@ -34,9 +36,24 @@ def determine_trend(candles: List[Candle], lookback: int = 20) -> str:
         lh = swing_highs[-1].high < swing_highs[-2].high
         ll = swing_lows[-1].low   < swing_lows[-2].low
 
-        if hh and hl:
+        bullish_score = int(hh) + int(hl)
+        bearish_score = int(lh) + int(ll)
+
+        # FIX: relaxed — only need 1 of 2 conditions, with tiebreak
+        if bullish_score > bearish_score and bullish_score >= 1:
             return "bullish"
-        if lh and ll:
+        if bearish_score > bullish_score and bearish_score >= 1:
+            return "bearish"
+
+    # Fallback: compare open of oldest vs close of newest candle
+    if len(recent) >= 5:
+        start_price = recent[0].open
+        end_price   = recent[-1].close
+        change_pct  = (end_price - start_price) / start_price * 100
+
+        if change_pct > 0.3:
+            return "bullish"
+        if change_pct < -0.3:
             return "bearish"
 
     return "ranging"
@@ -72,7 +89,6 @@ def detect_bos_choch(
     last = candles[-1]
 
     # Use candles up to (but not including) the last one for swing detection
-    # so we're looking for breaks of *previous* structure
     historical = candles[:-1]
     swing_highs = find_swing_highs(historical, n=lookback)
     swing_lows  = find_swing_lows(historical,  n=lookback)
@@ -81,7 +97,7 @@ def detect_bos_choch(
         return None
 
     last_sh = swing_highs[-1].high
-    last_sl  = swing_lows[-1].low
+    last_sl = swing_lows[-1].low
 
     # ── Bullish BOS: close beyond last swing high in a bullish trend ──
     if trend == "bullish" and last.close > last_sh:

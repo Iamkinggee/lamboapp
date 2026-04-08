@@ -1,4 +1,4 @@
-// LOCATION: apps/mobile/services/ws.ts
+﻿// LOCATION: apps/mobile/services/ws.ts
 // WebSocket service — singleton connection manager
 
 import { getToken } from './api';

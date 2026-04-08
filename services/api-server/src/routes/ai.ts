@@ -4,7 +4,9 @@ import { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/auth';
 import { getChatHistory, saveChatMessage, getSignalById } from '../db/supabase';
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:8001';
+// FIX: was defaulting to http://localhost:8001 (the api-server itself),
+// causing /ai/chat to call itself in a loop. Correct port is 8002.
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:8002';
 
 // ── HTF Bias Analysis ─────────────────────────────────────────────────────
 // Derives a structured AI bias assessment from the signal's SMC attributes.
@@ -112,8 +114,6 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
         const res = await fetch(`${AI_SERVICE_URL}/explain`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          // FIX: Pass the bias block to the AI service so it can reference
-          // the structured analysis in its narrative explanation.
           body:    JSON.stringify({ user_id: userId, signal, htf_bias_context: biasPreamble }),
           signal:  AbortSignal.timeout(20_000),
         });
@@ -125,8 +125,7 @@ export async function aiRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.send({ explanation: fullExplanation });
       } catch (err) {
         console.error('[AI] Explain call failed:', err);
-        // FIX: Instead of returning a bare 503, fall back to the bias block alone.
-        // The client gets a useful analysis even when the AI service is down.
+        // Fall back to the bias block alone rather than a bare 503.
         return reply.send({
           explanation: `${biasPreamble}\n\n---\n\n⚠️ Extended AI narrative unavailable right now. The HTF bias and risk analysis above is generated from the signal's SMC attributes.`,
         });

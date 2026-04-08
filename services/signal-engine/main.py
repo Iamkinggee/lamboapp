@@ -36,7 +36,7 @@ HTF_TF           = ["1h", "4h"]
 LTF_TF           = ["1m", "5m"]
 MIN_RR           = float(os.getenv("MIN_RR", "2.0"))
 SIGNAL_COOLDOWN  = int(os.getenv("SIGNAL_COOLDOWN_SEC", "300"))
-MIN_LTF_CANDLES  = 50
+MIN_LTF_CANDLES  = 20   # FIX: was 50 — too high for early live candles
 MIN_HTF_CANDLES  = 100
 WS_BATCH_SIZE    = 200
 SEED_CONCURRENCY = 10
@@ -62,20 +62,38 @@ async def on_kline(candle) -> None:
             return
 
         htf_zones = htf_analyzer.get_active_zones(pair)
+        bias      = htf_zones.get("bias")
+
+        log.debug(
+            f"[{pair}/{tf}] price={candle.close} bias={bias} "
+            f"OBs={len(htf_zones.get('obs', []))} FVGs={len(htf_zones.get('fvgs', []))} "
+            f"Liq={len(htf_zones.get('liq', []))}"
+        )
+
         ltf_state = ltf_analyzer.check_entry(candle, htf_zones)
+
         if not ltf_state:
+            log.debug(f"[{pair}/{tf}] ltf_state=None — no entry condition")
             return
 
-        result = score_signal(ltf_state)
-        score      = result[0]
+        log.info(
+            f"[{pair}/{tf}] ✅ Entry hit | dir={ltf_state.direction} "
+            f"ob={ltf_state.ob_tapped} fvg={ltf_state.inside_fvg} "
+            f"liq={ltf_state.liquidity_swept} bos={ltf_state.bos_or_choch}"
+        )
+
+        result      = score_signal(ltf_state)
+        score       = result[0]
         confluences = result[1]
         entry_model = result[2] if len(result) > 2 else None
 
         if score is None:
+            log.debug(f"[{pair}/{tf}] score=None — rejected by confluence engine")
             return
 
         now = time.time()
         if now - last_published.get(pair, 0) < SIGNAL_COOLDOWN:
+            log.debug(f"[{pair}] Cooldown active — skipping")
             return
 
         htf_bias = htf_analyzer.get_bias(pair)
@@ -83,6 +101,7 @@ async def on_kline(candle) -> None:
         sig = risk_manager.calculate_sl_tp(sig, htf_zones)
 
         if sig.risk_reward < MIN_RR:
+            log.debug(f"[{pair}] Signal rejected — RR {sig.risk_reward:.2f} < {MIN_RR}")
             return
 
         await publisher.publish(sig)
@@ -111,21 +130,31 @@ async def seed_all(pairs):
 
 
 async def bootstrap_htf(pairs):
+    """
+    Process ALL historical HTF candles so that order blocks, FVGs and
+    liquidity zones are fully built before going live.
+    """
     count = 0
     for pair in pairs:
         for tf in HTF_TF:
-            if candle_store.has_enough(pair, tf, minimum=MIN_HTF_CANDLES):
-                candles = candle_store.get_closed(pair, tf, n=500)
-                if candles:
-                    htf_analyzer.process_closed_candle(candles[-1])
-                    count += 1
+            if not candle_store.has_enough(pair, tf, minimum=MIN_HTF_CANDLES):
+                log.debug(f"[bootstrap] Skipping {pair}/{tf} — not enough candles")
+                continue
+            candles = candle_store.get_closed(pair, tf, n=500)
+            if not candles:
+                continue
+            for candle in candles:
+                htf_analyzer.process_closed_candle(candle)
+            count += 1
+            log.debug(f"[bootstrap] {pair}/{tf} — processed {len(candles)} candles")
+
     log.info(f"✅ HTF zones bootstrapped: {count} pair/tf combos")
 
 
 async def main() -> None:
     log.info("═══════════════════════════════════════════════════")
     log.info(f"  SMC Signal Engine — {len(PAIRS)} pairs")
-    log.info(f"  Backend: {os.getenv('BACKEND_URL', 'http://localhost:3001')}")
+    log.info(f"  Backend: {os.getenv('BACKEND_URL', 'http://localhost:8001')}")
     log.info(f"  Min RR: {MIN_RR}  |  Cooldown: {SIGNAL_COOLDOWN}s")
     log.info("═══════════════════════════════════════════════════")
 
@@ -147,7 +176,7 @@ async def main() -> None:
     _signal.signal(_signal.SIGINT, _shutdown)
     _signal.signal(_signal.SIGTERM, _shutdown)
 
-    batches = [PAIRS[i:i+WS_BATCH_SIZE] for i in range(0, len(PAIRS), WS_BATCH_SIZE)]
+    batches  = [PAIRS[i:i+WS_BATCH_SIZE] for i in range(0, len(PAIRS), WS_BATCH_SIZE)]
     log.info(f"🚀 Starting {len(batches)} WS connection(s) for {len(PAIRS)} pairs — LIVE")
 
     clients  = [BinanceWSClient(pairs=b, timeframes=HTF_TF+LTF_TF) for b in batches]
@@ -159,10 +188,13 @@ async def main() -> None:
 
     for task in pending:
         task.cancel()
-        try: await task
-        except asyncio.CancelledError: pass
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
-    for c in clients: c.stop()
+    for c in clients:
+        c.stop()
     await publisher.close()
     log.info("Engine stopped.")
 
