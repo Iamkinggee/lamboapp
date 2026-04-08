@@ -1,7 +1,7 @@
 import Redis from 'ioredis';
 import { EventEmitter } from 'events';
 import { SMCSignal } from '../models/signal';
-import { saveSignal } from '../db/supabase';
+// saveSignal import removed — persistence is handled by /internal/signal route
 
 class SignalEventBus extends EventEmitter {
   emitSignal(signal: SMCSignal) {
@@ -89,10 +89,13 @@ export function startRedisSubscriber(): void {
       `[Signal] ${signal.type} ${signal.pair} | Score: ${signal.confidence_score}% | RR: ${signal.risk_reward}`
     );
 
-    saveSignal(signal).catch((err: Error) =>
-      console.error('[DB] Persist failed:', err.message)
-    );
-
+    // NOTE: saveSignal() is intentionally NOT called here.
+    // The Python engine POSTs to /internal/signal which saves to Supabase
+    // AND broadcasts via WebSocket in a single atomic step.
+    // Calling saveSignal() here would write every signal to the DB twice
+    // and could race with the /internal/signal upsert.
+    // signalBus is kept for any future internal listeners but WS broadcast
+    // is handled entirely by broadcastSignal() in signal_broadcaster.ts.
     signalBus.emitSignal(signal);
   });
 }

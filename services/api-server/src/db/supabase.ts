@@ -75,9 +75,16 @@ export async function getSignals(
   pair?: string,
   type?: 'BUY' | 'SELL'
 ): Promise<SMCSignal[]> {
+  // FIX: only return signals from the last 24 hours.
+  // Without this filter the REST endpoint returns all historical signals,
+  // which then appear in the mobile app as "active" even after they have
+  // already hit TP/SL — flooding the signals tab with stale entries.
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
   let query = supabase
     .from('signals')
     .select('*')
+    .gte('signal_time', since)          // ← only fresh signals
     .order('signal_time', { ascending: false })
     .range(offset, offset + limit - 1);
 

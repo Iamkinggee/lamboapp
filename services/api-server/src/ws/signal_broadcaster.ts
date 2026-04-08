@@ -139,30 +139,9 @@ export function broadcastSignal(signal: SMCSignal): void {
     console.log(`[WS] Broadcast: ${signal.pair} ${signal.type} → 0 WS clients (push only)`);
   }
 
-  // ── Push notifications ──
-  // FIX: previously fired on every broadcastSignal call unconditionally,
-  // meaning users WITH an active WebSocket connection also got a push
-  // notification — causing duplicate alerts on the mobile app.
-  //
-  // New logic:
-  //   - If there are authenticated clients and signal was delivered → skip push
-  //     (they already see it on screen in real time)
-  //   - If no authenticated clients are online → always send push
-  //     (users are offline and must be notified)
-  //
-  // Note: sendSignalPushNotifications is responsible for filtering by
-  // user preferences (notify_high_confidence, watched_pairs, etc.)
-  // so we can safely call it here without over-notifying.
-  const authenticatedCount = Array.from(clients.values()).filter(c => c.authenticated).length;
-
-  if (sent === 0 || authenticatedCount === 0) {
-    // No one received it live — send push to reach offline users
-    sendSignalPushNotifications(signal).catch((err) => {
-      console.error('[Push] Notification send failed:', err);
-    });
-  }
-  // If you want push even for online users (e.g. for lock-screen alerts),
-  // replace the condition above with: sendSignalPushNotifications(signal)
+  // NOTE: Push notifications are NOT sent here.
+  // The /internal/signal route calls broadcastSignal() then sendSignalPushNotifications().
+  // Sending push here too would double-notify every user.
 }
 
 // ── Ping/pong keep-alive ──────────────────────────────────────────────────────

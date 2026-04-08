@@ -57,6 +57,10 @@ export default function SignalsScreen() {
       return res;
     },
     refetchOnWindowFocus: false,
+    // FIX: staleTime prevents the query from immediately re-running when the
+    // tab is focused or the component remounts, which was evicting WS signals
+    // that hadn't yet been persisted to the DB.
+    staleTime: 30_000,
   });
 
   useEffect(() => {

@@ -16,13 +16,13 @@ const expo = new Expo();
 // ── Types ─────────────────────────────────────
 
 interface PushTarget {
-  user_id:   string;
-  fcm_token: string;
-  min_confidence: number;
-  notify_high_confidence: boolean;
-  notify_all_signals:     boolean;
-  notify_bias_change:     boolean;
-  watched_pairs:          string[];
+  user_id:                  string;
+  fcm_token:                string;
+  min_confidence_threshold: number;   // FIX: was min_confidence — must match DB column name
+  notify_high_confidence:   boolean;
+  notify_all_signals:       boolean;
+  notify_bias_change:       boolean;
+  watched_pairs:            string[];
 }
 
 // ── Main export: send signal push to all eligible users ──
@@ -32,7 +32,7 @@ export async function sendSignalPushNotifications(signal: SMCSignal): Promise<vo
   const { data, error } = await supabase
     .from('user_preferences')
     .select(
-      'user_id, fcm_token, min_confidence, notify_high_confidence, notify_all_signals, watched_pairs'
+      'user_id, fcm_token, min_confidence_threshold, notify_high_confidence, notify_all_signals, watched_pairs'  // FIX: correct column name
     )
     .not('fcm_token', 'is', null);
 
@@ -55,7 +55,9 @@ export async function sendSignalPushNotifications(signal: SMCSignal): Promise<vo
 
     // Check notification preference + confidence threshold
     const isHighConfidence = signal.confidence_score >= 80;
-    const meetsThreshold   = signal.confidence_score >= target.min_confidence;
+    // FIX: use correct column name + fallback to 65 if null (was comparing against undefined, always false)
+    const minConf          = target.min_confidence_threshold ?? 65;
+    const meetsThreshold   = signal.confidence_score >= minConf;
 
     const shouldSend =
       (target.notify_high_confidence && isHighConfidence) ||

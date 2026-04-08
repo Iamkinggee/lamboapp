@@ -138,8 +138,12 @@ async def on_kline(candle) -> None:
 
         log.info(f"📡 Signal fired: {pair} {sig.type} conf={score}% RR={sig.risk_reward:.2f}")
 
+    except AttributeError as exc:
+        # AttributeError usually means a missing method on a model class.
+        # Log with full traceback so it is immediately visible in the logs.
+        log.critical(f"[on_kline] AttributeError — likely missing model method: {exc}", exc_info=True)
     except Exception as exc:
-        log.error(f"Error in on_kline: {exc}", exc_info=True)
+        log.error(f"[on_kline] Unexpected error for {candle.pair}/{candle.timeframe}: {exc}", exc_info=True)
 
 
 async def seed_all(pairs):

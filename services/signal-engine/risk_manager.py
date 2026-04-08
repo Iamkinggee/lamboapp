@@ -32,22 +32,47 @@ class RiskManager:
         Args:
             signal:    Signal dataclass instance (entry, type already set)
             htf_zones: dict from HTFAnalyzer.get_active_zones()
-                       expected keys: ob_top, ob_bottom
+                       keys: bias, obs (List[OrderBlock]), fvgs, liq
 
         Returns:
             The same signal with stop_loss, take_profit, risk_reward set.
+
+        FIX: previously looked for ob_top/ob_bottom flat keys that were never
+        set by get_active_zones(). Now extracts the nearest OB from the obs
+        list, matching the direction of the signal.
         """
         entry  = signal.entry
-        is_buy = signal.type == "BUY"
+        is_buy = (signal.type == "BUY" or
+                  (hasattr(signal.type, "value") and signal.type.value == "BUY"))
+
+        # ── Resolve OB boundaries from obs list ──────────────────────────────
+        obs = htf_zones.get("obs", [])
+        ob_bottom_val = None
+        ob_top_val    = None
+
+        if obs:
+            from models import ZoneType
+            target_type = ZoneType.BULLISH_OB if is_buy else ZoneType.BEARISH_OB
+            # Find the nearest unmitigated OB of the right type to entry price
+            relevant = [
+                ob for ob in obs
+                if ob.type == target_type and not getattr(ob, "mitigated", False)
+            ]
+            if relevant:
+                nearest = min(relevant, key=lambda ob: abs(
+                    ((ob.top + ob.bottom) / 2) - entry
+                ))
+                ob_bottom_val = nearest.bottom
+                ob_top_val    = nearest.top
 
         # ── Stop Loss ────────────────────────────────────────────────────────
         if is_buy:
             # SL below the bullish OB bottom (fallback: 1% below entry)
-            ob_bottom = htf_zones.get("ob_bottom", entry * 0.99)
+            ob_bottom = ob_bottom_val if ob_bottom_val is not None else entry * 0.99
             sl = ob_bottom * (1.0 - SL_BUFFER_PCT)
         else:
             # SL above the bearish OB top (fallback: 1% above entry)
-            ob_top = htf_zones.get("ob_top", entry * 1.01)
+            ob_top = ob_top_val if ob_top_val is not None else entry * 1.01
             sl = ob_top * (1.0 + SL_BUFFER_PCT)
 
         sl_distance = abs(entry - sl)
