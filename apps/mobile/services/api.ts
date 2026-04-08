@@ -3,8 +3,9 @@
 import { supabase, sessionReady } from './supabase';
 import { useAuthStore } from '../store/useAuthStore';
 
-const getFallbackUrl = () => 'http://13.40.3.171:3001';
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? getFallbackUrl();
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? (() => {
+  throw new Error('[Config] EXPO_PUBLIC_API_URL is not set. Add it to your .env file.');
+})();
 
 // ── Auth ──────────────────────────────────────────────────────
 
@@ -47,9 +48,6 @@ export async function getToken(): Promise<string | null> {
     return null;
   }
 
-  // FIX: If there's no session at all, attempt a silent refresh before giving up.
-  // This handles the case where AsyncStorage had a persisted session but
-  // the in-memory session wasn't restored yet (race on cold start).
   if (!data.session) {
     console.warn('[Token] No session in memory — attempting silent refresh');
     const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
@@ -66,7 +64,6 @@ export async function getToken(): Promise<string | null> {
   const { access_token, expires_at, user } = data.session;
   const now = Math.floor(Date.now() / 1000);
 
-  // Token is still fresh (more than 60s remaining)
   if (expires_at && expires_at - now > 60) {
     if (useAuthStore.getState().token !== access_token) {
       await useAuthStore.getState().login(access_token, user.id);
@@ -74,7 +71,6 @@ export async function getToken(): Promise<string | null> {
     return access_token;
   }
 
-  // Token expiring/expired — refresh it
   console.log('[Token] Refreshing expiring token...');
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
 

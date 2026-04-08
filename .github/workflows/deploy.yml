@@ -1,101 +1,73 @@
-# FILE: .github/workflows/deploy.yml
-# CI/CD Pipeline — pushes to main trigger auto-deploy to AWS EC2.
-# FREE: GitHub Actions gives 2,000 min/month free for public repos.
-# Setup: Add these secrets in GitHub → Settings → Secrets:
-#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, EC2_HOST, EC2_KEY (base64 of .pem)
+# LOCATION: .github/workflows/deploy.yml
+# OCI deployment — SSH into both VMs and pull latest code
 
-name: Deploy to AWS
+name: Deploy to OCI
 
 on:
   push:
     branches: [main]
 
-env:
-  AWS_REGION:     us-east-1
-  PROJECT:        lamboapp
-
 jobs:
-  # ── Build & push to ECR ─────────────────────────────────────────────────
-  build-and-push:
-    name: Build Docker Images & Push to ECR
+  deploy-signal-engine:
+    name: Deploy Signal Engine (OCI VM1)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: SSH deploy to VM1
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build & push signal-engine
-        run: |
-          ECR="${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/signal-engine"
-          docker build -t $ECR:latest ./services/signal-engine
-          docker push $ECR:latest
-
-      - name: Build & push api-server
-        run: |
-          ECR="${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/api-server"
-          docker build -t $ECR:latest ./services/api-server
-          docker push $ECR:latest
-
-      - name: Build & push ai-assistant
-        run: |
-          ECR="${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT }}/ai-assistant"
-          docker build -t $ECR:latest ./services/ai-assistant
-          docker push $ECR:latest
-
-  # ── Deploy to EC2 ────────────────────────────────────────────────────────
-  deploy:
-    name: Deploy to EC2
-    runs-on: ubuntu-latest
-    needs: build-and-push
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key:      ${{ secrets.EC2_KEY }}
+          host:     ${{ secrets.OCI_VM1_IP }}
+          username: ubuntu
+          key:      ${{ secrets.OCI_SSH_KEY }}
           script: |
-            REGION="us-east-1"
-            ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-            aws ecr get-login-password --region $REGION | \
-              docker login --username AWS --password-stdin "${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
+            cd ~/lamboapp
+            git pull origin main
+            cd services/signal-engine
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
+            sudo systemctl restart smc-engine
+            echo "Signal engine restarted"
 
-            cd /home/ec2-user
-            docker-compose -f docker-compose.aws.yml pull
-            docker-compose -f docker-compose.aws.yml up -d --remove-orphans
-            docker system prune -f
-            echo "✅ Deployed successfully $(date)"
-
-  # ── Deploy web admin to S3 ───────────────────────────────────────────────
-  deploy-admin:
-    name: Deploy Web Admin to S3
+  deploy-api-server:
+    name: Deploy API Server (OCI VM2)
     runs-on: ubuntu-latest
-    needs: build-and-push
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: SSH deploy to VM2
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          host:     ${{ secrets.OCI_VM2_IP }}
+          username: ubuntu
+          key:      ${{ secrets.OCI_SSH_KEY }}
+          script: |
+            cd ~/lamboapp
+            git pull origin main
+            cd services/api-server
+            npm install --silent
+            npm run build
+            pm2 restart smc-api || pm2 start dist/index.js --name smc-api
+            echo "API server restarted"
 
-      - name: Sync web admin to S3
-        run: |
-          aws s3 sync ./apps/web-admin/ s3://${{ secrets.S3_BUCKET }}/ --delete
-          echo "✅ Web admin deployed to S3"
+  deploy-ai-assistant:
+    name: Deploy AI Assistant (OCI VM1)
+    runs-on: ubuntu-latest
+    needs: deploy-signal-engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH deploy AI service to VM1
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host:     ${{ secrets.OCI_VM1_IP }}
+          username: ubuntu
+          key:      ${{ secrets.OCI_SSH_KEY }}
+          script: |
+            cd ~/lamboapp
+            git pull origin main
+            cd services/ai-assistant
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
+            sudo systemctl restart smc-ai
+            echo "AI assistant restarted"

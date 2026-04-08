@@ -4,7 +4,9 @@
 import { getToken } from './api';
 import { SMCSignal } from './api';
 
-const WS_URL = process.env.EXPO_PUBLIC_WS_URL ?? 'ws://13.40.3.171:3001/ws';
+const WS_URL = process.env.EXPO_PUBLIC_WS_URL ?? (() => {
+  throw new Error('[Config] EXPO_PUBLIC_WS_URL is not set. Add it to your .env file.');
+})();
 
 type WSStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'RECONNECTING';
 type SignalHandler = (signal: SMCSignal) => void;
@@ -15,7 +17,7 @@ class WebSocketService {
   private status: WSStatus = 'DISCONNECTED';
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
+  private maxReconnectAttempts = 20;
   private authenticated = false;
   private connecting = false;
 
@@ -76,11 +78,9 @@ class WebSocketService {
       return;
     }
 
-    // DIAGNOSTIC: log the token header so we can verify algorithm on the server
     try {
       const header = JSON.parse(atob(token.split('.')[0]));
       console.log('[WS] Token alg:', header.alg, '| typ:', header.typ);
-      console.log('[WS] Token preview:', token.slice(0, 40) + '...');
     } catch {
       console.warn('[WS] Could not decode token header');
     }

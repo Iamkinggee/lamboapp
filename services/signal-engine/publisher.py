@@ -15,7 +15,7 @@ log = logging.getLogger("engine.publisher")
 
 REDIS_URL        = os.getenv("UPSTASH_REDIS_URL", "redis://localhost:6379")
 CHANNEL          = "signals:live"
-BACKEND_URL      = os.getenv("BACKEND_URL", "http://13.40.3.171:3001")
+BACKEND_URL      = os.getenv("BACKEND_URL", "http://localhost:8001")
 AI_SERVICE_URL   = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
 INTERNAL_SECRET  = os.getenv("INTERNAL_SECRET", "your-internal-secret")
 
