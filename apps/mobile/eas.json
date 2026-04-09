@@ -3,21 +3,20 @@
     "version": ">= 10.0.0"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal"
-    },
     "preview": {
-      "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
-      "autoIncrement": true
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "channel": "production"
     }
   },
-  "submit": {
-    "production": {}
+  "update": {
+    "url": "https://u.expo.dev/fd71525b-3a3a-4c3e-bf1f-a228fcbe06f0"
   }
 }

@@ -21,6 +21,25 @@
         ]
       }
     },
+
+
+
+
+    "updates": {
+  "url": "https://u.expo.dev/fd71525b-3a3a-4c3e-bf1f-a228fcbe06f0",
+  "enabled": true,
+  "fallbackToCacheTimeout": 0,
+  "checkAutomatically": "ON_LOAD"
+},
+"runtimeVersion": {
+  "policy": "appVersion"
+},
+
+
+
+
+
+
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
