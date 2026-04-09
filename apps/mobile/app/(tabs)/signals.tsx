@@ -3,12 +3,14 @@
 //  2. Duplicate signals prevented by dedup in store
 //  6. TP_HIT / SL_HIT coins auto-removed — filtered() only returns ACTIVE
 //  7. Stale signals from previous sessions never shown — purged in setSignals()
+//  NEW: WS signals appear immediately — spinner only blocks when store is truly empty
+//  NEW: filtered() memoized to avoid re-computation on every unrelated store update
 
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
   RefreshControl, ActivityIndicator, ScrollView,
 } from "react-native";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSignalStore, type SignalWithStatus } from "../../store/useSignalStore";
@@ -32,7 +34,15 @@ export default function SignalsScreen() {
   const clearOld     = useSignalStore((s) => s.clearOld);
   const activeFilter = useSignalStore((s) => s.activeFilter);
   const setFilter    = useSignalStore((s) => s.setFilter);
-  const filtered     = useSignalStore((s) => s.filtered());
+
+  // FIX: subscribe to raw signals + filter, then memoize filtered() so it
+  // only recomputes when signals or activeFilter actually change — not on
+  // every unrelated store update (e.g. isConnected toggling).
+  const signals = useSignalStore((s) => s.signals);
+  const filtered = useMemo(
+    () => useSignalStore.getState().filtered(),
+    [signals, activeFilter]
+  );
 
   const initialLoadDone = useRef(false);
 
@@ -76,6 +86,11 @@ export default function SignalsScreen() {
     />
   );
 
+  // FIX: only block the UI with a spinner when the store is completely empty
+  // AND the REST call is still in flight. If WS has already pushed signals
+  // into the store, show them immediately — don't wait for REST to finish.
+  const showSpinner = isLoading && !initialLoadDone.current && filtered.length === 0;
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -112,7 +127,7 @@ export default function SignalsScreen() {
       </ScrollView>
 
       {/* Signal list — only ACTIVE, non-stale signals */}
-      {isLoading && filtered.length === 0 ? (
+      {showSpinner ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator color={Colors.accent} size="large" />
           <Text style={styles.loadingText}>Loading signals...</Text>

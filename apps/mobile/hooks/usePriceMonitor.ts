@@ -2,6 +2,8 @@
 // FIXES:
 //  3. Notifications only fired for signals that arrived AFTER app launch (addedAt > bootTime)
 //  4. resolvedSignals set is seeded from store on mount so old hits never re-fire
+//  NEW: Non-Binance symbols (e.g. XAUUSD) filtered out BEFORE fetchPrices is called,
+//       eliminating the repeated warn spam and wasted network calls
 
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
@@ -30,11 +32,9 @@ function isBinanceSymbol(symbol: string): boolean {
 async function fetchPrices(symbols: string[]): Promise<Record<string, number>> {
   if (symbols.length === 0) return {};
   const upper   = Array.from(new Set(symbols.map((s) => s.toUpperCase())));
+  // FIX: filter before the warn log so we only warn once per unique invalid symbol
+  // rather than spamming every 30s poll cycle
   const valid   = upper.filter(isBinanceSymbol);
-  const invalid = upper.filter((s) => !isBinanceSymbol(s));
-  if (invalid.length > 0) {
-    console.warn('[PriceMonitor] Skipping non-Binance symbols:', invalid.join(', '));
-  }
   if (valid.length === 0) return {};
 
   try {
@@ -76,6 +76,16 @@ export function usePriceMonitor() {
   const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRunningRef = useRef(false);
 
+  // FIX: log non-Binance symbols once on mount rather than every poll cycle
+  useEffect(() => {
+    const allSignals = useSignalStore.getState().signals;
+    const allPairs   = allSignals.map((s) => s.signal.pair.toUpperCase());
+    const invalid    = allPairs.filter((p) => !isBinanceSymbol(p));
+    if (invalid.length > 0) {
+      console.warn('[PriceMonitor] Non-Binance symbols in store (will be skipped):', [...new Set(invalid)].join(', '));
+    }
+  }, []);
+
   useEffect(() => {
     // FIX #3: stamp boot time once on mount
     if (bootTime === 0) bootTime = Date.now();
@@ -97,16 +107,21 @@ export function usePriceMonitor() {
       const signalPairs  = signalEntries.map((s) => s.signal.pair);
       const allPairs     = Array.from(new Set([...watchedPairs, ...signalPairs]));
 
-      if (allPairs.length === 0) return;
+      // FIX: filter out non-Binance symbols here, before fetchPrices,
+      // so isBinanceSymbol is the single gate and no warnings fire in the loop
+      const binancePairs = allPairs.filter(isBinanceSymbol);
 
-      const prices = await fetchPrices(allPairs);
+      if (binancePairs.length === 0) return;
+
+      const prices = await fetchPrices(binancePairs);
       if (Object.keys(prices).length === 0) return;
 
       // ── 1. Check watchlist entries ─────────────────────────────────────
       for (const entry of watchlist) {
         const { signal } = entry;
-        if (resolvedSignals.has(signal.signal_id))   continue;
-        if (processingSignals.has(signal.signal_id)) continue;
+        if (!isBinanceSymbol(signal.pair))             continue; // skip non-Binance silently
+        if (resolvedSignals.has(signal.signal_id))     continue;
+        if (processingSignals.has(signal.signal_id))   continue;
 
         const price = prices[signal.pair.toUpperCase()];
         if (price == null) continue;
@@ -151,9 +166,10 @@ export function usePriceMonitor() {
       // ── 2. Check live signals ──────────────────────────────────────────
       for (const entry of signalEntries) {
         const { signal } = entry;
-        if (resolvedSignals.has(signal.signal_id))   continue;
-        if (processingSignals.has(signal.signal_id)) continue;
-        if (useWatchlistStore.getState().isWatched(signal.signal_id)) continue;
+        if (!isBinanceSymbol(signal.pair))                             continue; // skip non-Binance silently
+        if (resolvedSignals.has(signal.signal_id))                     continue;
+        if (processingSignals.has(signal.signal_id))                   continue;
+        if (useWatchlistStore.getState().isWatched(signal.signal_id))  continue;
 
         const price = prices[signal.pair.toUpperCase()];
         if (price == null) continue;
