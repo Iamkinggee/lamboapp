@@ -4,8 +4,10 @@
   "description": "SMC Trading SaaS — Node.js Fastify API Server",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc",
+    "dev": "nodemon --exec ts-node --transpile-only src/index.ts",
+    "build": "node build.mjs",
+    "build:types": "tsc --emitDeclarationOnly --declaration --noEmit false",
+    "build:full": "npm run build && npm run build:types",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit"
   },
@@ -28,6 +30,8 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.37",
     "@types/uuid": "^9.0.7",
+    "esbuild": "^0.25.0",
+    "glob": "^11.0.0",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
