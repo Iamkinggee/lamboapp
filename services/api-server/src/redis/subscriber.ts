@@ -1,7 +1,25 @@
+// FILE: services/api-server/src/redis/subscriber.ts
+//
+// ARCHITECTURE NOTE:
+//   This subscriber is intentionally passive — it no longer calls
+//   signalBus.emitSignal() on incoming Redis messages.
+//
+//   Previously, the flow was:
+//     Redis PUBLISH → signalBus.emitSignal() → broadcastSignal()   ← duplicate ❌
+//     POST /internal/signal               → broadcastSignal()   ← correct ✅
+//
+//   Since the Python engine does BOTH (publishes to Redis AND POSTs to
+//   /internal/signal), every signal was broadcast twice. The fix is to
+//   let /internal/signal be the single source of truth for broadcast,
+//   and keep this subscriber only for logging/monitoring purposes.
+//
+//   If you ever want to decouple the Python engine so it only publishes
+//   to Redis (no HTTP POST), you can re-enable signalBus.emitSignal()
+//   here and remove the broadcastSignal() call from internal.ts.
+
 import Redis from 'ioredis';
 import { EventEmitter } from 'events';
 import { SMCSignal } from '../models/signal';
-// saveSignal import removed — persistence is handled by /internal/signal route
 
 class SignalEventBus extends EventEmitter {
   emitSignal(signal: SMCSignal) {
@@ -12,16 +30,10 @@ class SignalEventBus extends EventEmitter {
 export const signalBus = new SignalEventBus();
 
 // Deduplication: suppress identical signals within 5 minutes.
-// FIX: previously used Math.round(signal.entry) which collapses all altcoins
-// priced below $0.50 to the same hash (rounded to 0 or 1), causing every
-// signal from low-price tokens (DOGE, XRP, REEF, CHZ, etc.) to be dropped
-// as duplicates. Now uses toFixed(8) to preserve precision across all price ranges.
 const recentHashes = new Map<string, number>();
 const DEDUP_WINDOW_MS = 5 * 60 * 1000;
 
 function isDuplicate(signal: SMCSignal): boolean {
-  // FIX: use toFixed(8) instead of Math.round() so sub-dollar tokens
-  // (e.g. REEFUSDT at $0.0034, SHIBUSDT, DOGEUSDT) get distinct hashes.
   const entryFormatted = signal.entry.toFixed(8);
   const hash = `${signal.pair}:${signal.type}:${entryFormatted}:${signal.confidence_score}`;
   const now = Date.now();
@@ -31,7 +43,6 @@ function isDuplicate(signal: SMCSignal): boolean {
 
   recentHashes.set(hash, now);
 
-  // Cleanup stale entries
   for (const [key, ts] of Array.from(recentHashes.entries())) {
     if (now - ts > DEDUP_WINDOW_MS) recentHashes.delete(key);
   }
@@ -85,18 +96,12 @@ export function startRedisSubscriber(): void {
       return;
     }
 
+    // ✅ Passive log only — broadcast is handled by /internal/signal route.
+    // Do NOT call signalBus.emitSignal() here unless you remove the
+    // broadcastSignal() call from internal.ts first.
     console.log(
-      `[Signal] ${signal.type} ${signal.pair} | Score: ${signal.confidence_score}% | RR: ${signal.risk_reward}`
+      `[Redis] Signal observed (handled by HTTP route): ${signal.type} ${signal.pair} | Score: ${signal.confidence_score}% | RR: ${signal.risk_reward}`
     );
-
-    // NOTE: saveSignal() is intentionally NOT called here.
-    // The Python engine POSTs to /internal/signal which saves to Supabase
-    // AND broadcasts via WebSocket in a single atomic step.
-    // Calling saveSignal() here would write every signal to the DB twice
-    // and could race with the /internal/signal upsert.
-    // signalBus is kept for any future internal listeners but WS broadcast
-    // is handled entirely by broadcastSignal() in signal_broadcaster.ts.
-    signalBus.emitSignal(signal);
   });
 }
 

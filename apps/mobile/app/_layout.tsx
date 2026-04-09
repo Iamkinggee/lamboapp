@@ -18,6 +18,18 @@ import * as Notifications from "expo-notifications";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { SMCSignal } from "../services/api";
 
+
+
+
+
+
+
+
+
+
+
+
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 2, staleTime: 30_000 } },
 });

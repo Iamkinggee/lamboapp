@@ -4,22 +4,21 @@
 //          all authenticated mobile clients AND triggers push
 //          notifications for users not currently connected.
 //
-// FIXES:
-//   - Push notifications now only fire when sent > 0 (clients received it)
-//     OR when there are no connected clients (offline users need push).
-//     Previously fired unconditionally on every broadcast, spamming push
-//     even when the signal was already delivered via WebSocket.
-//   - Added structured log for zero-client broadcasts so you can see
-//     if signals are arriving but no one is connected.
-//   - Stale client cleanup moved into a shared helper to avoid drift
-//     between the ping loop and broadcastSignal.
+// ARCHITECTURE NOTE:
+//   Signals enter the system via ONE path only:
+//     Python Engine → POST /internal/signal
+//       → broadcastSignal()          (WebSocket delivery)
+//       → sendSignalPushNotifications() (push delivery)
+//
+//   The Redis subscriber (subscriber.ts) is intentionally NOT
+//   wired to broadcastSignal(). It exists only as a passive bus
+//   for any future internal listeners. Wiring it to broadcast
+//   caused every signal to fire twice — once from the HTTP route
+//   and once from the Redis pub/sub message.
 // ============================================================
 
 import { WebSocket } from 'ws';
-import { EventEmitter } from 'events';
 import { SMCSignal, WSEvent, WSClientEvent } from '../models/signal';
-import { signalBus } from '../redis/subscriber';
-import { sendSignalPushNotifications } from '../routes/notifications';
 
 interface ConnectedClient {
   ws:              WebSocket;
@@ -30,12 +29,6 @@ interface ConnectedClient {
 }
 
 const clients = new Map<string, ConnectedClient>();
-
-export class SignalEventBus extends EventEmitter {
-  emitSignal(signal: SMCSignal) {
-    this.emit('signal:new', signal);
-  }
-}
 
 export function registerClient(
   connectionId: string,
@@ -68,8 +61,6 @@ export function registerClient(
     console.error(`[WS] Error [${userId}]:`, err.message);
     clients.delete(connectionId);
   });
-
-  // Do NOT send ping immediately — wait for client to authenticate first
 }
 
 function handleClientMessage(connectionId: string, msg: WSClientEvent): void {
@@ -77,7 +68,6 @@ function handleClientMessage(connectionId: string, msg: WSClientEvent): void {
   if (!client) return;
 
   if (msg.type === 'auth') {
-    // Token is already verified upstream during the WS upgrade handshake.
     client.authenticated = true;
     client.lastPong = Date.now();
     sendToClient(connectionId, { event: 'auth_ok', data: { ts: Date.now() } });
@@ -85,7 +75,6 @@ function handleClientMessage(connectionId: string, msg: WSClientEvent): void {
     return;
   }
 
-  // Gate all other message types behind authentication
   if (!client.authenticated) {
     console.warn(`[WS] Unauthenticated msg type "${msg.type}" from ${client.userId} — ignoring`);
     return;
@@ -106,7 +95,6 @@ function sendToClient(connectionId: string, event: WSEvent): void {
   }
 }
 
-/** Remove a stale client and terminate its socket. */
 function dropClient(connectionId: string, userId: string, reason: string): void {
   const client = clients.get(connectionId);
   if (client) {
@@ -121,7 +109,6 @@ export function broadcastSignal(signal: SMCSignal): void {
   let sent = 0;
 
   for (const [connectionId, client] of Array.from(clients.entries())) {
-    // Only broadcast to authenticated clients
     if (!client.authenticated) continue;
 
     if (
@@ -138,10 +125,6 @@ export function broadcastSignal(signal: SMCSignal): void {
   } else {
     console.log(`[WS] Broadcast: ${signal.pair} ${signal.type} → 0 WS clients (push only)`);
   }
-
-  // NOTE: Push notifications are NOT sent here.
-  // The /internal/signal route calls broadcastSignal() then sendSignalPushNotifications().
-  // Sending push here too would double-notify every user.
 }
 
 // ── Ping/pong keep-alive ──────────────────────────────────────────────────────
@@ -156,7 +139,6 @@ export function startPingLoop(): void {
         dropClient(connectionId, client.userId, 'pong timeout');
         continue;
       }
-      // Only ping authenticated clients
       if (client.authenticated) {
         sendToClient(connectionId, { event: 'ping', data: { ts: now } });
       }
@@ -164,10 +146,23 @@ export function startPingLoop(): void {
   }, PING_INTERVAL_MS);
 }
 
+// ── Init ──────────────────────────────────────────────────────────────────────
+let initialized = false;
+
 export function initBroadcaster(): void {
-  signalBus.on('signal:new', (signal: SMCSignal) => broadcastSignal(signal));
+  if (initialized) {
+    console.warn('[WS] initBroadcaster() called more than once — skipping');
+    return;
+  }
+  initialized = true;
+
+  // ✅ NO signalBus listener here.
+  // broadcastSignal() is called directly by /internal/signal route.
+  // Adding a signalBus listener here caused every signal to broadcast twice:
+  //   once from the HTTP route and once from the Redis pub/sub message.
+
   startPingLoop();
-  console.log('[WS] Broadcaster initialized with push notifications');
+  console.log('[WS] Broadcaster initialized');
 }
 
 export function getClientCount(): number { return clients.size; }
