@@ -1,7 +1,6 @@
 {
   "cli": {
-    "version": ">= 10.0.0",
-    "appVersionSource": "remote"
+    "version": ">= 10.0.0"
   },
   "build": {
     "preview": {
@@ -13,8 +12,8 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://rgnppmtihmgkxizpkxef.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJnbnBwbXRpaG1na3hpenBreGVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1Mjg2NTksImV4cCI6MjA5MDEwNDY1OX0.kSdwtpcJse_I_RgIw2-9cCrA_9TAEXsuUPoF4U4K_A8",
-        "EXPO_PUBLIC_API_URL": "http://141.147.45.183:8001",
-        "EXPO_PUBLIC_WS_URL": "ws://141.147.45.183:8001/ws",
+        "EXPO_PUBLIC_API_URL": "https://lamboai.duckdns.org",
+        "EXPO_PUBLIC_WS_URL": "wss://lamboai.duckdns.org/ws",
         "EXPO_PUBLIC_EAS_PROJECT_ID": "fd71525b-3a3a-4c3e-bf1f-a228fcbe06f0"
       }
     },
@@ -22,7 +21,14 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rgnppmtihmgkxizpkxef.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJnbnBwbXRpaG1na3hpenBreGVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1Mjg2NTksImV4cCI6MjA5MDEwNDY1OX0.kSdwtpcJse_I_RgIw2-9cCrA_9TAEXsuUPoF4U4K_A8",
+        "EXPO_PUBLIC_API_URL": "https://lamboai.duckdns.org",
+        "EXPO_PUBLIC_WS_URL": "wss://lamboai.duckdns.org/ws",
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "fd71525b-3a3a-4c3e-bf1f-a228fcbe06f0"
+      }
     }
   }
 }
