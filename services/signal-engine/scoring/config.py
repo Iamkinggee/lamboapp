@@ -38,13 +38,13 @@ TP2_MULT = 3.5    # Main swing — 30% of position
 TP3_MULT = 5.5    # Runner — 20% of position, targets opposing liquidity
 
 # ── Cooldown ─────────────────────────────────────────────────────────────────
-# 15m candles close every 15 minutes — a 300s cooldown = 1 candle window
-# Prevents firing multiple signals on the same structural setup
-SIGNAL_COOLDOWN_SECONDS     = 300   # 5 minutes — one full 15m candle
-ENGINE_SIGNAL_COOLDOWN_SEC  = 300
+# 15m candles close every 900s. Cooldown must span at least one full candle
+# to prevent re-firing on consecutive closes at the same zone.
+SIGNAL_COOLDOWN_SECONDS     = 900   # 15 minutes — one full 15m candle
+ENGINE_SIGNAL_COOLDOWN_SEC  = 900
 
-# Anticipatory cooldown is shorter — early alerts can fire more often
-ANTICIPATORY_COOLDOWN_SEC   = 150   # 2.5 minutes
+# Anticipatory cooldown: half a candle (7.5 min) — still well-gated
+ANTICIPATORY_COOLDOWN_SEC   = 450   # 7.5 minutes
 
 # ── Intra-Candle Processing ───────────────────────────────────────────────────
 INTRACANDLE_SCORE_THRESHOLD = 70
@@ -67,5 +67,5 @@ LTF_MIN_CANDLES = 20
 
 # ── Dedup Window ──────────────────────────────────────────────────────────────
 # Prevents engine from firing same (pair + direction + entry_zone) twice
-# within one candle window
-DEDUP_WINDOW_SEC = 300   # same as cooldown
+# within one candle window. Must match SIGNAL_COOLDOWN_SECONDS.
+DEDUP_WINDOW_SEC = 900   # 15 minutes — same as cooldown
