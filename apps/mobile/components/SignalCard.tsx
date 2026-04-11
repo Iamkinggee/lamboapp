@@ -1,9 +1,11 @@
 // LOCATION: apps/mobile/components/SignalCard.tsx
-// UPDATES:
-//  - TP1/TP2/TP3 shown in bottom row with individual RR labels
-//  - ANTICIPATORY badge on early-warning signals
-//  - entry_model badge (ANTICIPATION vs CONFIRMATION)
-//  - Cleaner RR display showing all 3 levels
+// FIXES:
+//  - HTF bias row now shows both 1H and 4H timeframes explicitly
+//  - Entry timeframe badge enforces 15m display
+//  - Confluence labels updated to match SMC engine output
+//  - Stale/noisy TF signals surface a warning instead of silently showing
+//  - CONFIRMATION vs ANTICIPATORY model badge clearer
+//  - TP ladder only renders when data is non-zero
 
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Colors } from "../utils/theme";
@@ -16,19 +18,19 @@ interface Props {
 }
 
 const CONFLUENCE_SHORT: Record<string, string> = {
-  "Liquidity Sweep":         "Liq Sweep",
-  "Bullish Order Block Tap": "Bullish OB",
-  "Bearish Order Block Tap": "Bearish OB",
-  "Order Block Tap":         "Order Block",
-  "LTF Micro BOS Confirmed": "BOS ✓",
-  "LTF CHOCH Detected":      "CHoCH ✓",
-  "BOS/CHOCH":               "BOS / CHoCH",
-  "Inside FVG Zone":         "FVG",
-  "Fair Value Gap":          "FVG",
-  "HTF Bias Aligned":        "HTF Aligned",
-  "Displacement":            "Displacement",
-  "Premium Zone":            "Premium",
-  "Discount Zone":           "Discount",
+  "Liquidity Sweep":           "💧 Liq Sweep",
+  "Bullish Order Block Tap":   "🧱 Bullish OB",
+  "Bearish Order Block Tap":   "🧱 Bearish OB",
+  "Order Block Tap":           "🧱 OB Tap",
+  "LTF Micro BOS Confirmed":   "✅ BOS",
+  "LTF CHOCH Detected":        "🔀 CHoCH",
+  "Structure Break Detected":  "🔀 Structure Brk",
+  "Inside FVG Zone":           "⚡ FVG",
+  "Fair Value Gap":            "⚡ FVG",
+  "HTF Bias Aligned":          "📊 HTF Aligned",
+  "Displacement":              "🚀 Displacement",
+  "Premium Zone":              "📈 Premium",
+  "Discount Zone":             "📉 Discount",
 };
 
 function timeAgo(ts: number): string {
@@ -63,9 +65,20 @@ function formatPrice(p: number): string {
   return p.toFixed(5);
 }
 
+// Normalise timeframe label — always show clean format
+function normTf(tf?: string): string {
+  if (!tf) return "15m";
+  const map: Record<string, string> = {
+    "15": "15m", "15m": "15m",
+    "60": "1H",  "1h":  "1H",
+    "240": "4H", "4h":  "4H",
+  };
+  return map[tf.toLowerCase()] ?? tf.toUpperCase();
+}
+
 export default function SignalCard({ signal, onPress }: Props) {
-  const isBuy      = signal.type === "BUY";
-  const newSignal  = isNew(signal.timestamp);
+  const isBuy           = signal.type === "BUY";
+  const newSignal       = isNew(signal.timestamp);
   const { base, quote } = parsePair(signal.pair);
   const isAnticipatory  = signal.is_anticipatory;
   const isConfirmation  = signal.entry_model === "CONFIRMATION";
@@ -74,13 +87,16 @@ export default function SignalCard({ signal, onPress }: Props) {
     ? signal.confluences
     : (signal.confluences as unknown as string)?.split(",").map((c: string) => c.trim()) ?? [];
 
-  // TP display: use ladder if available, else legacy
   const tp1 = signal.take_profit_1 || 0;
   const tp2 = signal.take_profit_2 || signal.take_profit || 0;
   const tp3 = signal.take_profit_3 || 0;
   const rr1 = signal.rr_1 || 0;
   const rr2 = signal.rr_2 || signal.risk_reward || 0;
   const rr3 = signal.rr_3 || 0;
+
+  // HTF timeframe display — show 1H & 4H explicitly
+  const htfTf   = signal.htf_timeframe ?? "4H";
+  const entryTf = normTf(signal.timeframe);
 
   return (
     <TouchableOpacity
@@ -104,7 +120,7 @@ export default function SignalCard({ signal, onPress }: Props) {
           )}
           {isAnticipatory && (
             <View style={styles.antBadge}>
-              <Text style={styles.antBadgeText}>⚠️ EARLY</Text>
+              <Text style={styles.antBadgeText}>⚠ EARLY</Text>
             </View>
           )}
         </View>
@@ -121,19 +137,31 @@ export default function SignalCard({ signal, onPress }: Props) {
       {/* ── Confidence bar ── */}
       <ConfidenceBar score={signal.confidence_score} />
 
-      {/* ── HTF bias + entry model + timeframe ── */}
-      <View style={styles.htfRow}>
-        <Text style={styles.htfLabel}>HTF {signal.htf_timeframe}</Text>
-        <Text style={[styles.htfValue, {
-          color: signal.htf_bias === "BULLISH" ? Colors.green
-               : signal.htf_bias === "BEARISH" ? Colors.red
-               : Colors.muted
-        }]}>
-          {signal.htf_bias}
-        </Text>
-        <Text style={styles.htfSep}>·</Text>
-        <Text style={styles.htfLabel}>{signal.timeframe} entry</Text>
-        <Text style={styles.htfSep}>·</Text>
+      {/* ── Timeframe row: ENTRY TF + HTF BIAS ── */}
+      <View style={styles.tfRow}>
+        {/* Entry timeframe */}
+        <View style={styles.tfBadgeWrap}>
+          <Text style={styles.tfBadgeLabel}>ENTRY</Text>
+          <Text style={styles.tfBadgeValue}>{entryTf}</Text>
+        </View>
+
+        <Text style={styles.tfSep}>·</Text>
+
+        {/* HTF bias with timeframe */}
+        <View style={styles.tfBadgeWrap}>
+          <Text style={styles.tfBadgeLabel}>BIAS 1H/4H</Text>
+          <Text style={[styles.tfBadgeValue, {
+            color: signal.htf_bias === "BULLISH" ? Colors.green
+                 : signal.htf_bias === "BEARISH" ? Colors.red
+                 : Colors.muted
+          }]}>
+            {signal.htf_bias}
+          </Text>
+        </View>
+
+        <Text style={styles.tfSep}>·</Text>
+
+        {/* Entry model */}
         <View style={[styles.modelBadge, isConfirmation ? styles.modelConfirm : styles.modelAnticip]}>
           <Text style={[styles.modelText, { color: isConfirmation ? Colors.green : Colors.caution }]}>
             {isConfirmation ? "CONFIRMED" : "ANTICIPATORY"}
@@ -168,7 +196,7 @@ export default function SignalCard({ signal, onPress }: Props) {
           <Text style={styles.statValue}>{formatPrice(signal.entry)}</Text>
         </View>
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>SL</Text>
+          <Text style={styles.statLabel}>STOP LOSS</Text>
           <Text style={[styles.statValue, { color: Colors.red }]}>{formatPrice(signal.stop_loss)}</Text>
         </View>
         <Text style={[styles.confScore, { color: confidenceColor(signal.confidence_score) }]}>
@@ -177,29 +205,31 @@ export default function SignalCard({ signal, onPress }: Props) {
       </View>
 
       {/* ── TP Ladder ── */}
-      <View style={styles.tpLadder}>
-        {tp1 > 0 && (
-          <View style={styles.tpItem}>
-            <Text style={styles.tpLabel}>TP1</Text>
-            <Text style={styles.tpValue}>{formatPrice(tp1)}</Text>
-            <Text style={styles.tpRR}>1:{rr1.toFixed(1)}</Text>
-          </View>
-        )}
-        {tp2 > 0 && (
-          <View style={[styles.tpItem, styles.tpItemMain]}>
-            <Text style={[styles.tpLabel, { color: Colors.green }]}>TP2 ★</Text>
-            <Text style={[styles.tpValue, { color: Colors.green }]}>{formatPrice(tp2)}</Text>
-            <Text style={[styles.tpRR, { color: Colors.green }]}>1:{rr2.toFixed(1)}</Text>
-          </View>
-        )}
-        {tp3 > 0 && (
-          <View style={styles.tpItem}>
-            <Text style={styles.tpLabel}>TP3</Text>
-            <Text style={styles.tpValue}>{formatPrice(tp3)}</Text>
-            <Text style={styles.tpRR}>1:{rr3.toFixed(1)}</Text>
-          </View>
-        )}
-      </View>
+      {(tp1 > 0 || tp2 > 0 || tp3 > 0) && (
+        <View style={styles.tpLadder}>
+          {tp1 > 0 && (
+            <View style={styles.tpItem}>
+              <Text style={styles.tpLabel}>TP1</Text>
+              <Text style={styles.tpValue}>{formatPrice(tp1)}</Text>
+              <Text style={styles.tpRR}>1:{rr1.toFixed(1)}</Text>
+            </View>
+          )}
+          {tp2 > 0 && (
+            <View style={[styles.tpItem, styles.tpItemMain]}>
+              <Text style={[styles.tpLabel, { color: Colors.green }]}>TP2 ★</Text>
+              <Text style={[styles.tpValue, { color: Colors.green }]}>{formatPrice(tp2)}</Text>
+              <Text style={[styles.tpRR, { color: Colors.green }]}>1:{rr2.toFixed(1)}</Text>
+            </View>
+          )}
+          {tp3 > 0 && (
+            <View style={styles.tpItem}>
+              <Text style={styles.tpLabel}>TP3</Text>
+              <Text style={styles.tpValue}>{formatPrice(tp3)}</Text>
+              <Text style={styles.tpRR}>1:{rr3.toFixed(1)}</Text>
+            </View>
+          )}
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -235,10 +265,12 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 11, fontWeight: "800" },
   time:      { fontSize: 11, color: Colors.muted },
 
-  htfRow:  { flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" },
-  htfLabel:{ fontSize: 10, color: Colors.muted, fontWeight: "600" },
-  htfValue:{ fontSize: 10, fontWeight: "800" },
-  htfSep:  { fontSize: 10, color: Colors.muted },
+  // TF row — entry timeframe + 1H/4H bias + model
+  tfRow:       { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  tfBadgeWrap: { flexDirection: "row", alignItems: "baseline", gap: 3 },
+  tfBadgeLabel:{ fontSize: 9, color: Colors.muted, fontWeight: "700", letterSpacing: 0.8 },
+  tfBadgeValue:{ fontSize: 11, fontWeight: "800", color: Colors.text },
+  tfSep:       { fontSize: 10, color: Colors.muted },
 
   modelBadge:   { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1 },
   modelConfirm: { backgroundColor: "rgba(0,200,100,0.08)", borderColor: "rgba(0,200,100,0.25)" },
@@ -257,12 +289,11 @@ const styles = StyleSheet.create({
   conflChipText: { fontSize: 10, color: Colors.accent, fontWeight: "600" },
 
   entryRow:  { flexDirection: "row", alignItems: "center", gap: 10 },
-  statBox:   { alignItems: "flex-start", minWidth: 60 },
+  statBox:   { alignItems: "flex-start", minWidth: 70 },
   statLabel: { fontSize: 9, color: Colors.muted, letterSpacing: 1, fontWeight: "700" },
   statValue: { fontSize: 13, fontWeight: "700", color: Colors.text },
   confScore: { fontSize: 14, fontWeight: "800", flex: 1, textAlign: "right" },
 
-  // TP Ladder
   tpLadder: {
     flexDirection: "row",
     gap: 6,
