@@ -62,7 +62,7 @@ async def on_kline(candle) -> None:
         if not ltf_state:
             return
 
-        score, confluences = score_signal(ltf_state)
+        score, confluences, entry_model = score_signal(ltf_state)
         if score is None:
             return
 
