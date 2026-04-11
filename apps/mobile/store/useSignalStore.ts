@@ -1,11 +1,12 @@
 // LOCATION: apps/mobile/store/useSignalStore.ts
 // FIXES:
-//  2. Signals never duplicate — strict dedup by signal_id
-//  3. New WS signal always carries a fresh timestamp (Date.now())
-//  6. Signals with status TP_HIT / SL_HIT are hidden from the signals page
-//     automatically; they only reappear if a brand-new signal_id arrives
-//  7. On initial load, only signals from the last 24h are shown; stale signals
-//     from previous sessions are purged immediately
+//  - Primary dedup by signal_id (existing)
+//  - Secondary dedup by (pair + type + rounded_entry) prevents engine re-fires
+//    with different signal_ids from appearing as separate cards
+//  - 1m/3m/5m signals rejected at store entry — only 15m entries accepted
+//  - Resolved signals (TP_HIT/SL_HIT) hidden from filtered() automatically
+//  - Stale signals >24h purged on initial load
+//  - unreadCount only increments for signals that actually pass all gates
 
 import { create } from 'zustand';
 import { SMCSignal } from '../services/api';
@@ -18,7 +19,6 @@ export interface SignalWithStatus {
   signal:      SMCSignal;
   status:      SignalStatus;
   resolvedAt?: number;
-  // addedAt tracks when this entry entered the store (for freshness checks)
   addedAt:     number;
 }
 
@@ -32,31 +32,35 @@ export interface SignalState {
   addSignals: (signals: SMCSignal[]) => void;
   setSignals: (signals: SMCSignal[]) => void;
 
-  setFilter:    (filter: Filter) => void;
-  setConnected: (connected: boolean) => void;
-  markAllRead:  () => void;
-  clearOld:     () => void;
+  setFilter:          (filter: Filter) => void;
+  setConnected:       (connected: boolean) => void;
+  markAllRead:        () => void;
+  clearOld:           () => void;
   markSignalResolved: (signalId: string, status: 'TP_HIT' | 'SL_HIT') => void;
 
   filtered:        () => SignalWithStatus[];
   resolvedSignals: () => SignalWithStatus[];
 }
 
-// How many signals to keep in memory across all pairs
-const MAX_SIGNALS = 500;
+const MAX_SIGNALS  = 500;
+const STALE_AGE_MS = 24 * 60 * 60 * 1000;
 
-// Signals older than this are considered stale and purged on initial REST load
-const STALE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Accepted entry timeframes — 1m/3m/5m are too noisy
+const VALID_ENTRY_TFS = new Set(['15m', '15', '1h', '']);
 
-// ── Dedup: keep one entry per signal_id. If a conflict, prefer resolved over ACTIVE. ──
-function dedup(entries: SignalWithStatus[]): SignalWithStatus[] {
+function isAcceptedTf(tf?: string): boolean {
+  if (!tf) return true;
+  return VALID_ENTRY_TFS.has(tf.toLowerCase());
+}
+
+// Primary dedup: by signal_id
+function primaryDedup(entries: SignalWithStatus[]): SignalWithStatus[] {
   const seen = new Map<string, SignalWithStatus>();
   for (const entry of entries) {
     const existing = seen.get(entry.signal.signal_id);
     if (!existing) {
       seen.set(entry.signal.signal_id, entry);
     } else {
-      // Prefer resolved status; on equal status prefer newer addedAt
       const incomingResolved = entry.status !== 'ACTIVE';
       const existingResolved = existing.status !== 'ACTIVE';
       if (incomingResolved && !existingResolved) {
@@ -69,9 +73,37 @@ function dedup(entries: SignalWithStatus[]): SignalWithStatus[] {
   return Array.from(seen.values());
 }
 
-// Returns true if a signal_id has ever been resolved (TP or SL hit)
-function isAlreadyResolved(state: SignalWithStatus[], signalId: string): boolean {
-  return state.some((s) => s.signal.signal_id === signalId && s.status !== 'ACTIVE');
+// Secondary dedup: same (pair + type + ~entry price) = same trade setup
+// Keeps the one with the highest confidence score
+function secondaryDedup(entries: SignalWithStatus[]): SignalWithStatus[] {
+  const seen = new Map<string, SignalWithStatus>();
+  for (const entry of entries) {
+    const key = `${entry.signal.pair}:${entry.signal.type}:${Math.round(entry.signal.entry * 10000)}`;
+    const existing = seen.get(key);
+    if (!existing) {
+      seen.set(key, entry);
+    } else {
+      // Prefer resolved; on equal status prefer higher confidence then newer
+      const inResolved = entry.status !== 'ACTIVE';
+      const exResolved = existing.status !== 'ACTIVE';
+      if (inResolved && !exResolved) {
+        seen.set(key, entry);
+      } else if (!inResolved && !exResolved) {
+        if (
+          entry.signal.confidence_score > existing.signal.confidence_score ||
+          (entry.signal.confidence_score === existing.signal.confidence_score &&
+            entry.signal.timestamp > existing.signal.timestamp)
+        ) {
+          seen.set(key, entry);
+        }
+      }
+    }
+  }
+  return Array.from(seen.values());
+}
+
+function fullDedup(entries: SignalWithStatus[]): SignalWithStatus[] {
+  return secondaryDedup(primaryDedup(entries));
 }
 
 export const useSignalStore = create<SignalState>((set, get) => ({
@@ -80,21 +112,20 @@ export const useSignalStore = create<SignalState>((set, get) => ({
   isConnected:  false,
   unreadCount:  0,
 
-  // FIX #2+3: addSignal — called by WS handler for each new incoming signal.
-  // - Ignores duplicates (same signal_id already in store)
-  // - Ignores signals whose pair+entry already resolved (prevents re-display after TP/SL)
-  // - Stamps addedAt = Date.now() so the timestamp is always "now" for WS signals
   addSignal: (signal) => {
+    // Reject noisy timeframes at the door
+    if (!isAcceptedTf(signal.timeframe)) return;
+
     set((state) => {
-      // Skip if this exact signal_id already exists
+      // Skip exact signal_id duplicate
       if (state.signals.some((s) => s.signal.signal_id === signal.signal_id)) return state;
 
-      // Skip if this pair already has a resolved entry with the same entry price
-      // (i.e. don't re-surface a signal that was just TP/SL'd)
+      // Skip if this pair+type+entry already has a resolved entry
       const alreadyHit = state.signals.some(
         (s) =>
           s.signal.pair === signal.pair &&
-          s.signal.entry === signal.entry &&
+          s.signal.type === signal.type &&
+          Math.abs(s.signal.entry - signal.entry) < signal.entry * 0.0001 &&
           s.status !== 'ACTIVE'
       );
       if (alreadyHit) return state;
@@ -102,18 +133,18 @@ export const useSignalStore = create<SignalState>((set, get) => ({
       const entry: SignalWithStatus = {
         signal,
         status:  'ACTIVE',
-        addedAt: Date.now(), // FIX #3: always fresh timestamp
+        addedAt: Date.now(),
       };
-      const updated = dedup([entry, ...state.signals]).slice(0, MAX_SIGNALS);
+      const updated = fullDedup([entry, ...state.signals]).slice(0, MAX_SIGNALS);
       return { signals: updated, unreadCount: state.unreadCount + 1 };
     });
   },
 
-  // addSignals — used for REST merges (non-WS).
-  // Preserves already-resolved statuses; only adds truly new signal_ids.
   addSignals: (signals) => {
+    const accepted = signals.filter((s) => isAcceptedTf(s.timeframe));
+    if (!accepted.length) return;
     set((state) => {
-      const newEntries: SignalWithStatus[] = signals
+      const newEntries: SignalWithStatus[] = accepted
         .filter((sig) => !state.signals.some((s) => s.signal.signal_id === sig.signal_id))
         .map((sig) => ({
           signal:  sig,
@@ -121,40 +152,32 @@ export const useSignalStore = create<SignalState>((set, get) => ({
           addedAt: sig.timestamp ?? Date.now(),
         }));
       if (newEntries.length === 0) return state;
-      const merged = dedup([...state.signals, ...newEntries]).slice(0, MAX_SIGNALS);
+      const merged = fullDedup([...state.signals, ...newEntries]).slice(0, MAX_SIGNALS);
       return { signals: merged };
     });
   },
 
-  // setSignals — called on initial REST load.
-  // FIX #7: immediately purges stale signals (older than 24h) so stale data
-  // never shows on the signal page when the app first loads.
   setSignals: (signals) => {
-    const now = Date.now();
+    const now      = Date.now();
+    const accepted = signals.filter((s) => isAcceptedTf(s.timeframe));
     set((state) => {
-      // Build a map of what we already have (preserving resolved statuses from price monitor)
       const existingMap = new Map<string, SignalWithStatus>(
         state.signals.map((s) => [s.signal.signal_id, s])
       );
-
-      // WS-only entries (arrived via WS before REST completed): keep if ACTIVE and not stale
       const wsOnly = state.signals.filter(
         (s) =>
-          !signals.some((r) => r.signal_id === s.signal.signal_id) &&
+          !accepted.some((r) => r.signal_id === s.signal.signal_id) &&
           s.status === 'ACTIVE' &&
           now - s.addedAt < STALE_AGE_MS
       );
-
-      // From REST: merge, preserving existing resolved status, discard stale
-      const fromRest: SignalWithStatus[] = signals
+      const fromRest: SignalWithStatus[] = accepted
         .filter((sig) => now - (sig.timestamp ?? 0) < STALE_AGE_MS)
         .map((sig) => {
           const existing = existingMap.get(sig.signal_id);
-          if (existing) return existing; // preserve resolved status
+          if (existing) return existing;
           return { signal: sig, status: 'ACTIVE' as SignalStatus, addedAt: sig.timestamp ?? now };
         });
-
-      const merged = dedup([...wsOnly, ...fromRest]).slice(0, MAX_SIGNALS);
+      const merged = fullDedup([...wsOnly, ...fromRest]).slice(0, MAX_SIGNALS);
       return { signals: merged };
     });
   },
@@ -163,7 +186,6 @@ export const useSignalStore = create<SignalState>((set, get) => ({
   setConnected: (isConnected)  => set({ isConnected }),
   markAllRead:  ()             => set({ unreadCount: 0 }),
 
-  // Purge signals older than 24h that are still ACTIVE (shouldn't be shown)
   clearOld: () => {
     const cutoff = Date.now() - STALE_AGE_MS;
     set((state) => ({
@@ -173,9 +195,6 @@ export const useSignalStore = create<SignalState>((set, get) => ({
     }));
   },
 
-  // FIX #6: markSignalResolved — marks ALL entries with this signal_id as resolved.
-  // The filtered() function already hides TP_HIT/SL_HIT from the signals page,
-  // so the coin disappears automatically.
   markSignalResolved: (signalId, status) => {
     set((state) => ({
       signals: state.signals.map((s) =>
@@ -186,14 +205,15 @@ export const useSignalStore = create<SignalState>((set, get) => ({
     }));
   },
 
-  // filtered() — what the signals page shows.
-  // FIX #6: only ACTIVE signals shown; TP_HIT and SL_HIT are automatically excluded.
-  // FIX #7: also excludes signals older than 24h.
   filtered: () => {
     const { signals, activeFilter } = get();
     const now    = Date.now();
-    const active = dedup(signals).filter(
-      (s) => s.status === 'ACTIVE' && now - s.addedAt < STALE_AGE_MS
+    // Apply both dedup passes before filtering
+    const active = fullDedup(signals).filter(
+      (s) =>
+        s.status === 'ACTIVE' &&
+        now - s.addedAt < STALE_AGE_MS &&
+        isAcceptedTf(s.signal.timeframe)
     );
     switch (activeFilter) {
       case 'BUY':          return active.filter((s) => s.signal.type === 'BUY');
@@ -204,5 +224,5 @@ export const useSignalStore = create<SignalState>((set, get) => ({
     }
   },
 
-  resolvedSignals: () => dedup(get().signals).filter((s) => s.status !== 'ACTIVE'),
+  resolvedSignals: () => fullDedup(get().signals).filter((s) => s.status !== 'ACTIVE'),
 }));

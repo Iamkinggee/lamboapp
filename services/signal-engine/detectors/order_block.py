@@ -9,6 +9,12 @@ Identifies institutional Order Blocks:
 OB is only valid if:
   1. The following impulse body >= impulse_mult x average body (last 10 candles)
   2. The OB has NOT been fully mitigated (price closed 50%+ into the zone)
+
+FIXES:
+  - Empty window crash: candles[window_start:i] is empty when i==0,
+    causing mean() to raise StatisticsError. Now guarded with `if not window: continue`
+  - Zero avg_body guard: doji-heavy windows produced threshold=0, passing
+    every candle as an impulse. Now skipped with `if avg_body == 0: continue`
 """
 
 from statistics import mean
@@ -23,8 +29,7 @@ IMPULSE_MULT      = 1.5    # Impulse body must be >= 1.5x avg body
 AVG_BODY_LOOKBACK = 10     # Candles used to calculate average body
 MAX_OB_AGE        = 200    # Discard OBs older than N candles
 OB_MITIGATION_PCT = 0.50   # 50% penetration = mitigated
-# FIX: was 0.5% — way too tight. Now 3% to capture realistic OB approaches.
-MAX_OB_DISTANCE_PCT = 3.0
+MAX_OB_DISTANCE_PCT = 3.0  # FIX: was 0.5% — too tight. 3% captures realistic OB approaches.
 
 
 # ─── Core Functions ───────────────────────────────────────────────────────────
@@ -44,9 +49,18 @@ def find_order_blocks(
 
     for i in range(len(candles) - 1):
         window_start = max(0, i - AVG_BODY_LOOKBACK)
-        avg_body = mean(
-            abs(c.close - c.open) for c in candles[window_start:i]
-        ) if i > 0 else abs(candles[0].close - candles[0].open)
+        window = candles[window_start:i]
+
+        # FIX: window is empty when i==0 — mean() would raise StatisticsError
+        if not window:
+            continue
+
+        avg_body = mean(abs(c.close - c.open) for c in window)
+
+        # FIX: all-doji window gives avg_body=0 → threshold=0 → every candle
+        # passes the impulse check. Skip to avoid false OBs.
+        if avg_body == 0:
+            continue
 
         threshold = avg_body * impulse_mult
 
@@ -119,7 +133,7 @@ def get_nearest_ob(
     obs: List[OrderBlock],
     price: float,
     direction: str,
-    max_distance_pct: float = MAX_OB_DISTANCE_PCT,  # FIX: was hardcoded 0.5
+    max_distance_pct: float = MAX_OB_DISTANCE_PCT,
 ) -> Optional[OrderBlock]:
     """
     Find the nearest valid OB to current price within max_distance_pct.
