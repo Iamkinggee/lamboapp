@@ -219,7 +219,7 @@ class Signal:
     confluences:      List[str] = field(default_factory=list)
     htf_bias:         HTFBias = HTFBias.NEUTRAL
     entry_model:      EntryModel = EntryModel.ANTICIPATION
-    timeframe:        str = "5m"
+    timeframe:        str = "15m"
     htf_timeframe:    str = "1h"
     ai_explanation:   str = ""
 

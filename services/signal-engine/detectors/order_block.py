@@ -38,10 +38,6 @@ def find_order_blocks(
     candles: List[Candle],
     impulse_mult: float = IMPULSE_MULT,
 ) -> List[OrderBlock]:
-    """
-    Scan candles and return a list of unmitigated Order Blocks.
-    Only confirmed closed candles should be passed in.
-    """
     if len(candles) < AVG_BODY_LOOKBACK + 2:
         return []
 
@@ -51,14 +47,11 @@ def find_order_blocks(
         window_start = max(0, i - AVG_BODY_LOOKBACK)
         window = candles[window_start:i]
 
-        # FIX: window is empty when i==0 — mean() would raise StatisticsError
         if not window:
             continue
 
         avg_body = mean(abs(c.close - c.open) for c in window)
 
-        # FIX: all-doji window gives avg_body=0 → threshold=0 → every candle
-        # passes the impulse check. Skip to avoid false OBs.
         if avg_body == 0:
             continue
 
@@ -69,9 +62,8 @@ def find_order_blocks(
         next_body = abs(c_next.close - c_next.open)
 
         if next_body < threshold:
-            continue   # Impulse not strong enough
+            continue
 
-        # ── Bullish OB: bearish candle followed by strong bullish impulse ──
         if c.is_bearish and c_next.is_bullish:
             ob = OrderBlock(
                 type=ZoneType.BULLISH_OB,
@@ -83,7 +75,6 @@ def find_order_blocks(
             )
             obs.append(ob)
 
-        # ── Bearish OB: bullish candle followed by strong bearish impulse ──
         elif c.is_bullish and c_next.is_bearish:
             ob = OrderBlock(
                 type=ZoneType.BEARISH_OB,
@@ -99,11 +90,6 @@ def find_order_blocks(
 
 
 def update_mitigation(obs: List[OrderBlock], latest_candle: Candle) -> List[OrderBlock]:
-    """
-    Check each OB against the latest candle.
-    Mark as mitigated if price has penetrated 50%+ of the zone.
-    Returns only unmitigated OBs.
-    """
     active = []
     for ob in obs:
         if ob.mitigated:
@@ -115,12 +101,11 @@ def update_mitigation(obs: List[OrderBlock], latest_candle: Candle) -> List[Orde
             if latest_candle.close < mid:
                 ob.mitigated = True
                 continue
-        else:  # BEARISH_OB
+        else:
             if latest_candle.close > mid:
                 ob.mitigated = True
                 continue
 
-        # Track touches for strength scoring
         if ob.is_price_inside(latest_candle.low) or ob.is_price_inside(latest_candle.high):
             ob.touch_count += 1
 
@@ -135,11 +120,6 @@ def get_nearest_ob(
     direction: str,
     max_distance_pct: float = MAX_OB_DISTANCE_PCT,
 ) -> Optional[OrderBlock]:
-    """
-    Find the nearest valid OB to current price within max_distance_pct.
-    direction: "bullish" | "bearish"
-    Returns None if no valid OB is close enough.
-    """
     target_type = ZoneType.BULLISH_OB if direction == "bullish" else ZoneType.BEARISH_OB
 
     candidates = [ob for ob in obs if ob.type == target_type and not ob.mitigated]
@@ -153,7 +133,7 @@ def get_nearest_ob(
         elif price < ob.bottom:
             return ((ob.bottom - price) / price) * 100
         else:
-            return 0.0  # Price is inside the OB
+            return 0.0
 
     within_range = [ob for ob in candidates if distance(ob) <= max_distance_pct]
 
@@ -164,5 +144,4 @@ def get_nearest_ob(
 
 
 def is_price_in_ob(ob: OrderBlock, price: float) -> bool:
-    """Quick check: is price currently touching or inside an OB?"""
     return ob.bottom <= price <= ob.top
