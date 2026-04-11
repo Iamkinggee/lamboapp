@@ -3,6 +3,13 @@
 # FastAPI service — AI mentor endpoints
 # Called by the Node.js api-server as a proxy
 # Port: 8001 (matches Dockerfile EXPOSE and docker-compose healthcheck)
+#
+# FIXES:
+#   - timeframe default corrected from "5M" → "15m" (entry TF)
+#   - htf_timeframe default corrected from "1H" → "4h" (primary bias TF)
+#   - TP ladder fields (take_profit_1/2/3, rr_1/2/3) now parsed and
+#     forwarded to build_explanation_prompt for accurate analysis
+#   - is_anticipatory flag passed through so prompt knows signal type
 # ─────────────────────────────────────────────────────────────
 
 import os
@@ -98,29 +105,54 @@ async def explain_signal(req: ExplainRequest):
     try:
         ctx = get_user_context(req.user_id)
 
+        # FIX: defaults updated to match signal engine output:
+        #   timeframe    → "15m"  (entry candle)
+        #   htf_timeframe → "4h"  (primary bias TF; 1H also used)
         signal = SMCSignal(
             signal_id        = req.signal.get("signal_id", ""),
             pair             = req.signal["pair"],
             type             = req.signal["type"],
             entry            = req.signal["entry"],
             stop_loss        = req.signal["stop_loss"],
-            take_profit      = req.signal["take_profit"],
-            risk_reward      = req.signal["risk_reward"],
+            # Use TP2 as the primary TP (main swing target); fall back to legacy field
+            take_profit      = req.signal.get("take_profit_2") or req.signal.get("take_profit", 0),
+            # RR from TP2 (main target); fall back to legacy
+            risk_reward      = req.signal.get("rr_2") or req.signal.get("risk_reward", 0),
             confidence_score = req.signal["confidence_score"],
             confluences      = req.signal.get("confluences", []),
             htf_bias         = req.signal.get("htf_bias", "NEUTRAL"),
             entry_model      = req.signal.get("entry_model", "CONFIRMATION"),
             ai_explanation   = "",
-            timeframe        = req.signal.get("timeframe", "5M"),
-            htf_timeframe    = req.signal.get("htf_timeframe", "1H"),
-            timestamp        = 0,
+            # FIX: was "5M" — entry timeframe is always 15m
+            timeframe        = req.signal.get("timeframe", "15m"),
+            # FIX: was "1H" — primary HTF is 4H (1H also used for bias)
+            htf_timeframe    = req.signal.get("htf_timeframe", "4h"),
+            timestamp        = req.signal.get("timestamp", 0),
         )
 
-        prompt = build_explanation_prompt(signal, ctx.skill_level)
+        # FIX: pass full TP ladder + anticipatory flag to prompt builder
+        tp_ladder = {
+            "take_profit_1": req.signal.get("take_profit_1", 0),
+            "take_profit_2": req.signal.get("take_profit_2", 0),
+            "take_profit_3": req.signal.get("take_profit_3", 0),
+            "rr_1":          req.signal.get("rr_1", 0),
+            "rr_2":          req.signal.get("rr_2", 0),
+            "rr_3":          req.signal.get("rr_3", 0),
+        }
+        is_anticipatory = req.signal.get("is_anticipatory", False)
+        pre_signal_note = req.signal.get("pre_signal_note", "")
+
+        prompt = build_explanation_prompt(
+            signal,
+            ctx.skill_level,
+            tp_ladder=tp_ladder,
+            is_anticipatory=is_anticipatory,
+            pre_signal_note=pre_signal_note,
+        )
         explanation = chat(
-            system_prompt = "You are an expert SMC trading mentor. Be concise and clear.",   
+            system_prompt = "You are an expert SMC trading mentor. Be concise, specific, and analytical.",
             messages      = [{"role": "user", "content": prompt}],
-            max_tokens    = 300,
+            max_tokens    = 350,
         )
 
         return ExplainResponse(explanation=explanation)
