@@ -176,6 +176,35 @@ export async function fetchChatHistory() {
   return request<{ history: ChatMessage[] }>('/ai/history');
 }
 
+// ── Token Search & Analysis ───────────────────────────────────
+
+export interface TokenAnalysis {
+  pair:             string;
+  htf_bias:         HTFBias;
+  htf_timeframe:    string;
+  ltf_trend:        string;
+  active_obs:       Array<{ top: number; bottom: number; type: string; timeframe: string }>;
+  active_fvgs:      Array<{ top: number; bottom: number; type: string; fill_pct: number }>;
+  liq_zones:        Array<{ level: number; type: string; touch_count: number }>;
+  suggested_entry:  number | null;
+  suggested_sl:     number | null;
+  suggested_tp1:    number | null;
+  suggested_tp2:    number | null;
+  suggested_tp3:    number | null;
+  rr_1:             number | null;
+  rr_2:             number | null;
+  rr_3:             number | null;
+  confidence:       number;
+  summary:          string;
+  last_price:       number;
+  timestamp:        number;
+}
+
+export async function searchTokenAnalysis(pair: string): Promise<{ analysis: TokenAnalysis }> {
+  const symbol = pair.toUpperCase().includes('USDT') ? pair.toUpperCase() : `${pair.toUpperCase()}USDT`;
+  return request<{ analysis: TokenAnalysis }>(`/signals/analyze/${symbol}`, { method: 'GET' });
+}
+
 // ── User ──────────────────────────────────────────────────────
 
 export async function updatePreferences(prefs: Partial<UserPreferences>) {
@@ -217,8 +246,19 @@ export interface SMCSignal {
   type:             SignalType;
   entry:            number;
   stop_loss:        number;
+
+  // TP Ladder (TP1 ~1:2 scalp | TP2 ~1:3.5 swing | TP3 ~1:5.5 runner)
+  take_profit_1:    number;
+  take_profit_2:    number;
+  take_profit_3:    number;
+  rr_1:             number;
+  rr_2:             number;
+  rr_3:             number;
+
+  // Legacy — mirrors TP2 for backwards compat
   take_profit:      number;
   risk_reward:      number;
+
   confidence_score: number;
   confluences:      string[];
   htf_bias:         HTFBias;
@@ -226,6 +266,11 @@ export interface SMCSignal {
   ai_explanation:   string;
   timeframe:        string;
   htf_timeframe:    string;
+
+  // Anticipatory vs confirmatory
+  is_anticipatory:  boolean;
+  pre_signal_note:  string;
+
   timestamp:        number;
 }
 

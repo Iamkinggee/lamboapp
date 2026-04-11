@@ -192,6 +192,99 @@ class LTFAnalyzer:
             structure_break=structure,
         )
 
+    def check_anticipatory(
+        self,
+        candle:    Candle,
+        htf_zones: dict,
+    ) -> Optional[SignalState]:
+        """
+        Anticipatory entry detector — fires BEFORE BOS/CHOCH is confirmed.
+
+        Triggers when:
+          - Price taps an HTF OB OR enters an FVG
+          - HTF bias is clear (BULLISH or BEARISH)
+          - BOS/CHOCH is NOT yet confirmed (that's what makes it anticipatory)
+
+        Returns a SignalState with is_anticipatory=True, or None.
+        The engine publishes this as an EARLY ALERT signal, giving traders
+        time to prepare limit orders before the move plays out.
+        """
+        if candle.timeframe not in LTF_TIMEFRAMES:
+            return None
+
+        if not htf_analyzer.is_ready(candle.pair):
+            return None
+
+        if not candle_store.has_enough(candle.pair, candle.timeframe, minimum=LTF_MIN_CANDLES):
+            return None
+
+        candles    = candle_store.get_closed(candle.pair, candle.timeframe, n=50)
+        htf_bias   = htf_zones.get("bias", HTFBias.NEUTRAL)
+        htf_obs    = htf_zones.get("obs",  [])
+        htf_fvgs   = htf_zones.get("fvgs", [])
+        htf_liq    = htf_zones.get("liq",  [])
+        price      = candle.close
+
+        # Require clear HTF bias for anticipatory signals
+        if htf_bias == HTFBias.BULLISH:
+            direction = SignalType.BUY
+            dir_str   = "bullish"
+        elif htf_bias == HTFBias.BEARISH:
+            direction = SignalType.SELL
+            dir_str   = "bearish"
+        else:
+            return None
+
+        # Zone checks
+        active_ob  = get_nearest_ob(htf_obs, price, dir_str)
+        ob_tapped  = active_ob is not None and is_price_in_ob(active_ob, price)
+
+        active_fvg = get_nearest_fvg(htf_fvgs, price, dir_str)
+        inside_fvg = active_fvg is not None and is_price_in_fvg(active_fvg, price)
+
+        swept_zones     = detect_sweep(htf_liq, candle)
+        liquidity_swept = len(swept_zones) > 0
+        swept_level     = swept_zones[0].level if swept_zones else None
+
+        # Must have OB tap OR FVG to trigger an anticipatory alert
+        if not ob_tapped and not inside_fvg:
+            return None
+
+        # Verify BOS is NOT yet confirmed — if it is, let check_entry() handle it
+        ltf_trend     = determine_trend(candles)
+        structure     = detect_bos_choch(candles, trend=ltf_trend)
+        bos_confirmed = structure is not None
+        if bos_confirmed:
+            return None
+
+        htf_aligned = (
+            (direction == SignalType.BUY  and htf_bias == HTFBias.BULLISH) or
+            (direction == SignalType.SELL and htf_bias == HTFBias.BEARISH)
+        )
+
+        logger.info(
+            f"[ANTICIPATORY] {candle.pair}/{candle.timeframe} ⚠️ "
+            f"dir={dir_str} ob={ob_tapped} fvg={inside_fvg} "
+            f"liq={liquidity_swept} bos=pending htf_aligned={htf_aligned}"
+        )
+
+        return SignalState(
+            pair=candle.pair,
+            direction=direction,
+            timeframe=candle.timeframe,
+            current_price=price,
+            liquidity_swept=liquidity_swept,
+            ob_tapped=ob_tapped,
+            bos_or_choch=False,       # explicitly False — not yet confirmed
+            inside_fvg=inside_fvg,
+            htf_aligned=htf_aligned,
+            swept_level=swept_level,
+            active_ob=active_ob,
+            active_fvg=active_fvg,
+            structure_break=None,
+            is_anticipatory=True,
+        )
+
 
 # Module-level singleton
 ltf_analyzer = LTFAnalyzer()

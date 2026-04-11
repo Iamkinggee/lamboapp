@@ -1,78 +1,71 @@
 """
 scoring/config.py — Confluence Engine Configuration
-SMC Trading SaaS — Phase 2
 
-All weights must sum to 100.
-Threshold is the minimum score to publish a signal.
+Timeframes:
+  HTF: 1H + 4H for bias
+  LTF: 15m for entries (removed 1m — too noisy; 3m/5m — too fast for clean structure)
 
-FIXES:
-  - SIGNAL_THRESHOLD lowered to 55 so OB+Liq setups publish even without BOS
-  - ANTICIPATION_THRESHOLD lowered to 55 (matches publish threshold)
-  - CONFIRMATION_THRESHOLD kept at 80 (BOS confirmed + most confluences)
-  - SIGNAL_COOLDOWN_SECONDS reduced to 90s (was 60 in config, 300 in engine —
-    engine now reads from here so one source of truth)
-  - Added NEUTRAL_BIAS_ALLOWED flag so NEUTRAL HTF bias doesn't silently block
+TP Ladder:
+  TP1 = 1:2.0  (scalp partial)
+  TP2 = 1:3.5  (main target)
+  TP3 = 1:5.5+ (runner)
 """
 
 # ── Confluence Weights (must sum to 100) ──────────────────────────────────────
 WEIGHTS = {
-    "liq_sweep": 30,   # Liquidity sweep (stop hunt)
-    "ob_tap":    25,   # Order Block tap + reaction
-    "bos_choch": 20,   # BOS or CHOCH on LTF
-    "fvg":       15,   # FVG zone overlap
-    "htf_bias":  10,   # HTF bias alignment
+    "liq_sweep": 30,
+    "ob_tap":    25,
+    "bos_choch": 20,
+    "fvg":       15,
+    "htf_bias":  10,
 }
 
 assert sum(WEIGHTS.values()) == 100, "Weights must sum to 100"
 
-# ── Signal Publish Threshold ──────────────────────────────────────────────────
-# 55 = OB tap (25) + Liq sweep (30). Allows anticipation entries before BOS.
-# Previously 65 — was silently blocking valid setups.
-SIGNAL_THRESHOLD = 55
-
-# ── Entry Model Thresholds ────────────────────────────────────────────────────
-# ANTICIPATION: enter on OB+Liq tap before structure break confirms.
-# CONFIRMATION: BOS/CHOCH confirmed + high confluence stack.
-ANTICIPATION_THRESHOLD  = 55   # OB + Liq sweep only (no BOS yet)
-CONFIRMATION_THRESHOLD  = 80   # All confluences including BOS/CHOCH
+# ── Signal Thresholds ─────────────────────────────────────────────────────────
+SIGNAL_THRESHOLD        = 55   # OB(25) + Liq(30) — anticipation entries
+ANTICIPATION_THRESHOLD  = 55
+CONFIRMATION_THRESHOLD  = 80   # Full stack including BOS/CHOCH
 
 # ── Risk Management ───────────────────────────────────────────────────────────
-MIN_RR              = 1.5   # FIX: was 2.0 — too strict, many valid 1.5R setups missed
-SL_BUFFER_TICKS     = 3     # Extra ticks beyond OB wick for SL
+MIN_RR              = 2.0   # Based on TP2 (main target)
+SL_BUFFER_TICKS     = 3
 DEFAULT_ACCOUNT_RISK_PCT = 1.0
 
-# ── Cooldown (single source of truth — engine reads from here) ────────────────
-# FIX: was split across config (60s) and engine/main.py (300s hardcoded).
-# Engine now imports this. 90s allows re-entry on same pair after a pullback.
-SIGNAL_COOLDOWN_SECONDS     = 90
-ENGINE_SIGNAL_COOLDOWN_SEC  = 90   # engine/main.py imports this alias
+# ── TP Ladder Multipliers ─────────────────────────────────────────────────────
+TP1_MULT = 2.0    # Scalp — 50% of position
+TP2_MULT = 3.5    # Main swing — 30% of position
+TP3_MULT = 5.5    # Runner — 20% of position, targets opposing liquidity
+
+# ── Cooldown ─────────────────────────────────────────────────────────────────
+# 15m candles close every 15 minutes — a 300s cooldown = 1 candle window
+# Prevents firing multiple signals on the same structural setup
+SIGNAL_COOLDOWN_SECONDS     = 300   # 5 minutes — one full 15m candle
+ENGINE_SIGNAL_COOLDOWN_SEC  = 300
+
+# Anticipatory cooldown is shorter — early alerts can fire more often
+ANTICIPATORY_COOLDOWN_SEC   = 150   # 2.5 minutes
 
 # ── Intra-Candle Processing ───────────────────────────────────────────────────
-INTRACANDLE_SCORE_THRESHOLD = 70   # Higher bar for intra-candle triggers
+INTRACANDLE_SCORE_THRESHOLD = 70
 
 # ── Timeframe Config ──────────────────────────────────────────────────────────
-HTF_TIMEFRAMES = ["1h", "4h"]
-LTF_TIMEFRAMES = ["1m", "5m"]
+HTF_TIMEFRAMES = ["1h", "4h"]   # Bias + structural zones
+LTF_TIMEFRAMES = ["15m"]        # Entry timeframe — clean structure, less noise
 
-# ── Watched Pairs (config-level default; engine overrides via env) ─────────────
-WATCHED_PAIRS = [
-    "BTCUSDT", "ETHUSDT", "SOLUSDT",
-    "BNBUSDT",  "XRPUSDT", "ADAUSDT",
-]
-
-# ── Zone Age Limits (in candles) ──────────────────────────────────────────────
+# ── Zone Age Limits ───────────────────────────────────────────────────────────
 MAX_OB_AGE_CANDLES  = 200
 MAX_FVG_AGE_CANDLES = 100
 MAX_LIQ_AGE_CANDLES = 50
 
 # ── Bias Behaviour ────────────────────────────────────────────────────────────
-# When HTF bias is NEUTRAL, still allow LTF-driven signals (CHOCH plays).
-# Set to False to require a clear HTF bias for every signal.
 NEUTRAL_BIAS_ALLOWED = True
 
-# ── HTF Warm-up minimum ───────────────────────────────────────────────────────
-# Minimum closed HTF candles before bias computation is trusted.
-# FIX: was baked into htf_analyzer as 50; now centralised here so it's
-# easy to tune without hunting through files.
-HTF_MIN_CANDLES = 30   # was 50 — reduced so zones are ready sooner after boot
+# ── HTF Warm-up ───────────────────────────────────────────────────────────────
+HTF_MIN_CANDLES = 30
 LTF_MIN_CANDLES = 20
+
+# ── Dedup Window ──────────────────────────────────────────────────────────────
+# Prevents engine from firing same (pair + direction + entry_zone) twice
+# within one candle window
+DEDUP_WINDOW_SEC = 300   # same as cooldown

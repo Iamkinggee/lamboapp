@@ -1,156 +1,3 @@
-# # FILE: services/signal-engine/main.py
-
-# import asyncio
-# import logging
-# import os
-# import time
-# import signal as _signal
-
-# from ws_client import BinanceWSClient, seed_historical
-# from candle_store import candle_store
-# from htf_analyzer import htf_analyzer
-# from ltf_analyzer import ltf_analyzer
-# from scoring.confluence_engine import score_signal
-# from publisher import RedisPublisher
-# from risk_manager import RiskManager
-# from models import Signal
-
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-# )
-# log = logging.getLogger("engine.main")
-
-# PAIRS           = os.getenv("TRADING_PAIRS", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT").split(",")
-# HTF_TF          = ["1h", "4h"]
-# LTF_TF          = ["1m", "5m"]
-# MIN_RR          = float(os.getenv("MIN_RR", "2.0"))
-# SIGNAL_COOLDOWN = int(os.getenv("SIGNAL_COOLDOWN_SEC", "60"))
-# MIN_CANDLES     = int(os.getenv("MIN_CANDLES", "20"))
-
-# risk_manager = RiskManager(min_rr=MIN_RR)
-# publisher    = RedisPublisher()
-# last_published: dict[str, float] = {}
-
-
-# async def on_kline(candle) -> None:
-#     try:
-#         pair = candle.pair
-#         tf   = candle.timeframe
-
-#         if not candle.is_closed:
-#             return
-
-#         if tf in HTF_TF:
-#             htf_analyzer.process_closed_candle(candle)
-#             return
-
-#         if tf not in LTF_TF:
-#             return
-
-#         if not candle_store.has_enough(pair, tf, minimum=MIN_CANDLES):
-#             return
-
-#         htf_zones = htf_analyzer.get_active_zones(pair)
-#         if not htf_zones.get("obs") and not htf_zones.get("liq"):
-#             return
-
-#         ltf_state = ltf_analyzer.check_entry(candle, htf_zones)
-#         if not ltf_state:
-#             return
-
-#         score, confluences = score_signal(ltf_state)
-#         if score is None:
-#             return
-
-#         now = time.time()
-#         if now - last_published.get(pair, 0) < SIGNAL_COOLDOWN:
-#             return
-
-#         htf_bias = htf_analyzer.get_bias(pair)
-#         sig = Signal.from_state(ltf_state, score, confluences, pair, tf, htf_bias)
-#         sig = risk_manager.calculate_sl_tp(sig, htf_zones)
-
-#         if sig.risk_reward < MIN_RR:
-#             return
-
-#         await publisher.publish(sig)
-#         last_published[pair] = now
-
-#     except Exception as exc:
-#         log.error(f"Error in on_kline: {exc}", exc_info=True)
-
-
-# async def main() -> None:
-#     log.info("SMC Signal Engine starting")
-#     log.info(f"Pairs: {', '.join(PAIRS)}")
-
-#     await publisher.connect()
-
-#     log.info("Seeding historical candles...")
-#     for pair in PAIRS:
-#         for tf in HTF_TF + LTF_TF:
-#             await seed_historical(candle_store, pair, tf, limit=200)
-#     log.info("Historical candles seeded")
-
-#     for pair in PAIRS:
-#         for tf in HTF_TF:
-#             if candle_store.has_enough(pair, tf, minimum=MIN_CANDLES):
-#                 candles = candle_store.get_closed(pair, tf, n=1)
-#                 if candles:
-#                     htf_analyzer.process_closed_candle(candles[-1])
-
-#     stop = asyncio.Event()
-
-#     def _shutdown(signum, frame):
-#         log.info("Shutdown signal received")
-#         stop.set()
-
-#     _signal.signal(_signal.SIGINT,  _shutdown)
-#     _signal.signal(_signal.SIGTERM, _shutdown)
-
-#     client = BinanceWSClient(pairs=PAIRS, timeframes=HTF_TF + LTF_TF)
-
-#     ws_task        = asyncio.create_task(client.start(on_kline))
-#     heartbeat_task = asyncio.create_task(publisher.heartbeat(stop))
-#     stop_task      = asyncio.create_task(stop.wait())
-
-#     done, pending = await asyncio.wait(
-#         [ws_task, heartbeat_task, stop_task],
-#         return_when=asyncio.FIRST_COMPLETED,
-#     )
-
-#     for task in pending:
-#         task.cancel()
-#         try:
-#             await task
-#         except asyncio.CancelledError:
-#             pass
-
-#     client.stop()
-#     await publisher.close()
-#     log.info("Engine stopped cleanly.")
-
-
-# if __name__ == "__main__":
-#     asyncio.run(main())
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# FILE: services/signal-engine/main.py
-
 import asyncio
 import logging
 import os
@@ -164,24 +11,84 @@ from ltf_analyzer import ltf_analyzer
 from scoring.confluence_engine import score_signal
 from publisher import RedisPublisher
 from risk_manager import RiskManager
-from models import Signal
+from models import Signal, EntryModel, HTFBias
+from scoring.config import (
+    ENGINE_SIGNAL_COOLDOWN_SEC,
+    ANTICIPATION_THRESHOLD,
+    CONFIRMATION_THRESHOLD,
+    ANTICIPATORY_COOLDOWN_SEC,
+    DEDUP_WINDOW_SEC,
+    LTF_TIMEFRAMES,
+    HTF_TIMEFRAMES,
+)
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 log = logging.getLogger("engine.main")
 
-PAIRS           = os.getenv("TRADING_PAIRS", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT").split(",")
-HTF_TF          = ["1h", "4h"]
-LTF_TF          = ["1m", "5m"]
-MIN_RR          = float(os.getenv("MIN_RR", "2.0"))
-SIGNAL_COOLDOWN = int(os.getenv("SIGNAL_COOLDOWN_SEC", "60"))
-MIN_CANDLES     = int(os.getenv("MIN_CANDLES", "20"))
+DEFAULT_PAIRS = (
+    "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,AVAXUSDT,"
+    "DOTUSDT,LINKUSDT,MATICUSDT,LTCUSDT,ATOMUSDT,UNIUSDT,XLMUSDT,ETCUSDT,"
+    "ALGOUSDT,VETUSDT,ICPUSDT,FILUSDT,TRXUSDT,AAVEUSDT,SANDUSDT,MANAUSDT,"
+    "AXSUSDT,GRTUSDT,ENJUSDT,CHZUSDT,ZECUSDT,DASHUSDT,XMRUSDT,"
+    "NEARUSDT,FTMUSDT,1INCHUSDT,SNXUSDT,MKRUSDT,SUSHIUSDT,APEUSDT,"
+    "OPUSDT,ARBUSDT,GMTUSDT,HBARUSDT,EGLDUSDT,FLOWUSDT,NEOUSDT,"
+    "XTZUSDT,ZILUSDT,RUNEUSDT,LDOUSDT,RNDRUSDT,INJUSDT,SUIUSDT,"
+    "SEIUSDT,TIAUSDT,WLDUSDT,ARKMUSDT,STXUSDT,APTUSDT,CRVUSDT,"
+    "DYDXUSDT,IMXUSDT,GALAUSDT,OCEANUSDT,QNTUSDT,CELRUSDT,"
+    "BANDUSDT,STORJUSDT,FETUSDT,AGIXUSDT,LRCUSDT,SKLUSDT,"
+    "IOTAUSDT,DGBUSDT,KNCUSDT,ONTUSDT,ZRXUSDT,BNTUSDT,"
+    "POWRUSDT,MASKUSDT,CHRUSDT,REEFUSDT,KLAYUSDT,WOOUSDT,PENDLEUSDT"
+)
 
-risk_manager    = RiskManager(min_rr=MIN_RR)
-publisher       = RedisPublisher()
-last_published: dict[str, float] = {}
+PAIRS    = [p.strip() for p in os.getenv("TRADING_PAIRS", DEFAULT_PAIRS).split(",") if p.strip()]
+HTF_TF   = list(HTF_TIMEFRAMES)   # ["1h", "4h"]
+LTF_TF   = list(LTF_TIMEFRAMES)   # ["15m"]
+
+MIN_RR          = float(os.getenv("MIN_RR", "2.0"))
+SIGNAL_COOLDOWN = int(os.getenv("SIGNAL_COOLDOWN_SEC", str(ENGINE_SIGNAL_COOLDOWN_SEC)))
+
+MIN_LTF_CANDLES  = 20
+MIN_HTF_CANDLES  = 100
+WS_BATCH_SIZE    = 200
+SEED_CONCURRENCY = 10
+
+risk_manager = RiskManager(min_rr=MIN_RR)
+publisher    = RedisPublisher()
+
+# Per-pair cooldown tracking
+last_published:    dict[str, float] = {}
+last_anticipatory: dict[str, float] = {}
+
+# Dedup: (pair + direction + rounded_entry_price) → last fired timestamp
+# Key format: "BTCUSDT:BUY:95420" — prevents same zone from firing twice
+_dedup: dict[str, float] = {}
+
+
+def _dedup_key(pair: str, direction: str, entry: float) -> str:
+    """
+    Round entry to 4 significant figures to absorb tiny price drift
+    between candle closes without treating them as distinct setups.
+    E.g. 95420.1 and 95421.8 both round to 95420 → same key.
+    """
+    sig = float(f"{entry:.4g}")
+    return f"{pair}:{direction}:{sig}"
+
+
+def _is_dup(key: str, window: float = DEDUP_WINDOW_SEC) -> bool:
+    return (time.time() - _dedup.get(key, 0)) < window
+
+
+def _mark_dup(key: str) -> None:
+    _dedup[key] = time.time()
+    # Prune old entries to prevent unbounded growth
+    if len(_dedup) > 2000:
+        cutoff = time.time() - DEDUP_WINDOW_SEC * 2
+        for k in list(_dedup):
+            if _dedup[k] < cutoff:
+                del _dedup[k]
 
 
 async def on_kline(candle) -> None:
@@ -192,88 +99,177 @@ async def on_kline(candle) -> None:
         if not candle.is_closed:
             return
 
+        # Route HTF candles to the analyzer for zone building
         if tf in HTF_TF:
             htf_analyzer.process_closed_candle(candle)
             return
 
+        # Only process LTF (15m) for entries
         if tf not in LTF_TF:
             return
 
-        if not candle_store.has_enough(pair, tf, minimum=MIN_CANDLES):
+        if not candle_store.has_enough(pair, tf, minimum=MIN_LTF_CANDLES):
             return
 
         htf_zones = htf_analyzer.get_active_zones(pair)
-        if not htf_zones.get("obs") and not htf_zones.get("liq"):
+        now       = time.time()
+
+        # ── ANTICIPATORY SIGNAL — fires before BOS ─────────────────────────
+        ant_cooldown = ANTICIPATORY_COOLDOWN_SEC
+        if now - last_anticipatory.get(pair, 0) >= ant_cooldown:
+            ant_state = ltf_analyzer.check_anticipatory(candle, htf_zones)
+            if ant_state is not None:
+                result     = score_signal(ant_state)
+                score      = result[0]
+                confluences = result[1]
+                if score is not None and score >= ANTICIPATION_THRESHOLD:
+                    dir_str  = ant_state.direction.value if hasattr(ant_state.direction, "value") else str(ant_state.direction)
+                    dk       = _dedup_key(pair, dir_str, ant_state.current_price)
+                    if not _is_dup(dk):
+                        htf_bias = htf_analyzer.get_bias(pair)
+                        sig = Signal.from_state(
+                            ant_state, score, confluences, pair, tf,
+                            htf_bias, EntryModel.ANTICIPATION
+                        )
+                        sig.is_anticipatory = True
+                        sig.pre_signal_note = (
+                            f"⚠️ EARLY ALERT: {pair} entering HTF "
+                            f"{'OB' if ant_state.ob_tapped else 'FVG'} zone on 15m. "
+                            f"Bias: {htf_bias.value if hasattr(htf_bias, 'value') else htf_bias}. "
+                            f"{'Liquidity swept — high reversal probability.' if ant_state.liquidity_swept else 'Watch for liq sweep to confirm.'}"
+                            f" Awaiting BOS/CHOCH for confirmation signal."
+                        )
+                        sig = risk_manager.calculate_sl_tp(sig, htf_zones)
+                        if sig.rr_1 >= 1.8:
+                            await publisher.publish(sig)
+                            last_anticipatory[pair] = now
+                            _mark_dup(dk)
+                            log.info(
+                                f"📡 EARLY {pair} {sig.type} conf={score}% "
+                                f"TP1=1:{sig.rr_1} TP2=1:{sig.rr_2} TP3=1:{sig.rr_3}"
+                            )
+
+        # ── CONFIRMATORY SIGNAL — BOS/CHOCH confirmed ─────────────────────
+        if now - last_published.get(pair, 0) < SIGNAL_COOLDOWN:
+            log.debug(f"[{pair}] Confirmatory cooldown — skip")
             return
 
         ltf_state = ltf_analyzer.check_entry(candle, htf_zones)
         if not ltf_state:
             return
 
-        score, confluences = score_signal(ltf_state)
+        result      = score_signal(ltf_state)
+        score       = result[0]
+        confluences = result[1]
+        entry_model = result[2] if len(result) > 2 else None
+
         if score is None:
             return
 
-        now = time.time()
-        if now - last_published.get(pair, 0) < SIGNAL_COOLDOWN:
+        dir_str = ltf_state.direction.value if hasattr(ltf_state.direction, "value") else str(ltf_state.direction)
+        dk      = _dedup_key(pair, dir_str, ltf_state.current_price)
+        if _is_dup(dk):
+            log.debug(f"[{pair}] Dedup hit — same zone already published within {DEDUP_WINDOW_SEC}s")
             return
 
         htf_bias = htf_analyzer.get_bias(pair)
-        sig = Signal.from_state(ltf_state, score, confluences, pair, tf, htf_bias)
-        sig = risk_manager.calculate_sl_tp(sig, htf_zones)
+        sig      = Signal.from_state(ltf_state, score, confluences, pair, tf, htf_bias, entry_model)
+        sig      = risk_manager.calculate_sl_tp(sig, htf_zones)
 
-        if sig.risk_reward < MIN_RR:
+        if sig.rr_2 < MIN_RR:
+            log.debug(f"[{pair}] Rejected — RR2 {sig.rr_2:.2f} < {MIN_RR}")
             return
 
         await publisher.publish(sig)
         last_published[pair] = now
+        _mark_dup(dk)
+        ltf_analyzer.mark_signal(pair)
 
+        log.info(
+            f"📡 CONFIRMED {pair} {sig.type} conf={score}% "
+            f"TP1=1:{sig.rr_1} TP2=1:{sig.rr_2} TP3=1:{sig.rr_3}"
+        )
+
+    except AttributeError as exc:
+        log.critical(f"[on_kline] AttributeError: {exc}", exc_info=True)
     except Exception as exc:
-        log.error(f"Error in on_kline: {exc}", exc_info=True)
+        log.error(f"[on_kline] Error for {candle.pair}/{candle.timeframe}: {exc}", exc_info=True)
+
+
+async def seed_all(pairs):
+    sem       = asyncio.Semaphore(SEED_CONCURRENCY)
+    completed = 0
+    total     = len(pairs) * len(HTF_TF + LTF_TF)
+
+    async def seed_one(pair, tf):
+        nonlocal completed
+        depth = {"4h": 500, "1h": 500, "15m": 300}.get(tf, 200)
+        async with sem:
+            await seed_historical(candle_store, pair, tf, limit=depth)
+        completed += 1
+        if completed % 50 == 0 or completed == total:
+            log.info(f"  Seeding: {completed}/{total} ({int(completed/total*100)}%)")
+
+    await asyncio.gather(
+        *[seed_one(p, tf) for p in pairs for tf in HTF_TF + LTF_TF],
+        return_exceptions=True
+    )
+
+
+async def bootstrap_htf(pairs):
+    count = 0
+    for pair in pairs:
+        for tf in HTF_TF:
+            if not candle_store.has_enough(pair, tf, minimum=MIN_HTF_CANDLES):
+                continue
+            candles = candle_store.get_closed(pair, tf, n=500)
+            if not candles:
+                continue
+            for candle in candles:
+                htf_analyzer.process_closed_candle(candle)
+            count += 1
+    log.info(f"✅ HTF zones bootstrapped: {count} pair/tf combos")
 
 
 async def main() -> None:
-    log.info("═══════════════════════════════════════")
-    log.info("  SMC Signal Engine starting")
-    log.info(f"  Pairs:    {', '.join(PAIRS)}")
-    log.info(f"  Backend:  {os.getenv('BACKEND_URL', 'http://13.40.3.171:3001')}")
-    log.info(f"  Min RR:   {MIN_RR}")
-    log.info(f"  Cooldown: {SIGNAL_COOLDOWN}s")
-    log.info("═══════════════════════════════════════")
+    log.info("═══════════════════════════════════════════════════")
+    log.info(f"  SMC Signal Engine — {len(PAIRS)} pairs")
+    log.info(f"  LTF entries: {LTF_TF}  |  HTF bias: {HTF_TF}")
+    log.info(f"  Min RR (TP2): {MIN_RR}  |  Cooldown: {SIGNAL_COOLDOWN}s")
+    log.info(f"  TP Ladder: 1:2.0 / 1:3.5 / 1:5.5+")
+    log.info(f"  Dedup window: {DEDUP_WINDOW_SEC}s")
+    log.info("═══════════════════════════════════════════════════")
 
     await publisher.connect()
 
-    log.info("Seeding historical candles...")
-    for pair in PAIRS:
-        for tf in HTF_TF + LTF_TF:
-            await seed_historical(candle_store, pair, tf, limit=200)
-    log.info("✅ Historical candles seeded")
+    log.info(f"⏳ Seeding {len(PAIRS)} pairs × {len(HTF_TF + LTF_TF)} tfs...")
+    await seed_all(PAIRS)
+    log.info("✅ Seeding complete")
 
-    for pair in PAIRS:
-        for tf in HTF_TF:
-            if candle_store.has_enough(pair, tf, minimum=MIN_CANDLES):
-                candles = candle_store.get_closed(pair, tf, n=1)
-                if candles:
-                    htf_analyzer.process_closed_candle(candles[-1])
+    log.info("⏳ Bootstrapping HTF zones...")
+    await bootstrap_htf(PAIRS)
+    log.info("✅ Bootstrap complete — engine LIVE")
 
     stop = asyncio.Event()
 
-    def _shutdown(signum, frame):
-        log.info("Shutdown signal received")
+    def _shutdown(s, f):
+        log.info("Shutdown received")
         stop.set()
 
     _signal.signal(_signal.SIGINT,  _shutdown)
     _signal.signal(_signal.SIGTERM, _shutdown)
 
-    client = BinanceWSClient(pairs=PAIRS, timeframes=HTF_TF + LTF_TF)
+    batches  = [PAIRS[i:i + WS_BATCH_SIZE] for i in range(0, len(PAIRS), WS_BATCH_SIZE)]
+    log.info(f"🚀 Starting {len(batches)} WS connection(s)")
 
-    ws_task        = asyncio.create_task(client.start(on_kline))
-    heartbeat_task = asyncio.create_task(publisher.heartbeat(stop))
-    stop_task      = asyncio.create_task(stop.wait())
+    clients  = [BinanceWSClient(pairs=b, timeframes=HTF_TF + LTF_TF) for b in batches]
+    ws_tasks = [asyncio.create_task(c.start(on_kline)) for c in clients]
+    hb_task  = asyncio.create_task(publisher.heartbeat(stop))
+    st_task  = asyncio.create_task(stop.wait())
 
     done, pending = await asyncio.wait(
-        [ws_task, heartbeat_task, stop_task],
-        return_when=asyncio.FIRST_COMPLETED,
+        ws_tasks + [hb_task, st_task],
+        return_when=asyncio.FIRST_COMPLETED
     )
 
     for task in pending:
@@ -283,9 +279,10 @@ async def main() -> None:
         except asyncio.CancelledError:
             pass
 
-    client.stop()
+    for c in clients:
+        c.stop()
     await publisher.close()
-    log.info("Engine stopped cleanly.")
+    log.info("Engine stopped.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,12 @@
 """
 models.py — Signal Engine Data Models
 SMC Trading SaaS — Phase 2
-All core dataclasses for candles, zones, and signals.
+
+UPDATES:
+  - Signal now carries take_profit_1/2/3 with rr_1/2/3 (TP ladder: 1:2, 1:3.5, 1:5+)
+  - is_anticipatory flag: fires BEFORE BOS — warns trader of a developing setup
+  - pre_signal_note: describes why the early alert triggered
+  - from_state() factory method retained
 """
 
 from dataclasses import dataclass, field
@@ -25,8 +30,8 @@ class SignalType(str, Enum):
     SELL = "SELL"
 
 class EntryModel(str, Enum):
-    ANTICIPATION = "ANTICIPATION"   # OB tap — tighter SL, better RR
-    CONFIRMATION  = "CONFIRMATION"   # BOS/CHOCH confirmed — higher win rate
+    ANTICIPATION = "ANTICIPATION"   # OB tap — fires BEFORE BOS — tighter SL
+    CONFIRMATION  = "CONFIRMATION"  # BOS/CHOCH confirmed — higher win rate
 
 class ZoneType(str, Enum):
     BULLISH_OB   = "bullish_ob"
@@ -57,8 +62,8 @@ class Candle:
     low:        float
     close:      float
     volume:     float
-    timestamp:  int           # Unix ms open time
-    is_closed:  bool = False  # True = confirmed close, False = live/intra
+    timestamp:  int
+    is_closed:  bool = False
 
     @property
     def body_size(self) -> float:
@@ -102,7 +107,6 @@ class OrderBlock:
         return self.bottom <= price <= self.top
 
     def mitigation_level(self, price: float) -> float:
-        """Returns 0.0–1.0 how deep price has penetrated the OB."""
         if self.type == ZoneType.BULLISH_OB:
             depth = self.top - price
             return max(0.0, depth / (self.top - self.bottom))
@@ -119,7 +123,7 @@ class FairValueGap:
     timeframe:  str
     timestamp:  int
     pair:       str
-    fill_pct:   float = 0.0   # 0–100%
+    fill_pct:   float = 0.0
 
     @property
     def is_filled(self) -> bool:
@@ -146,7 +150,7 @@ class FairValueGap:
 
 @dataclass
 class LiquidityZone:
-    type:        ZoneType       # EQUAL_HIGHS or EQUAL_LOWS
+    type:        ZoneType
     level:       float
     pair:        str
     timeframe:   str
@@ -158,14 +162,14 @@ class LiquidityZone:
 @dataclass
 class StructureBreak:
     type:        BOSType
-    direction:   str             # "bullish" | "bearish" | "bullish_reversal" | "bearish_reversal"
+    direction:   str
     price:       float
     timeframe:   str
     pair:        str
     timestamp:   int = field(default_factory=lambda: int(time.time() * 1000))
 
 
-# ─── Signal State (input to scorer) ──────────────────────────────────────────
+# ─── Signal State ─────────────────────────────────────────────────────────────
 
 @dataclass
 class SignalState:
@@ -183,9 +187,11 @@ class SignalState:
     active_ob:         Optional[OrderBlock] = None
     active_fvg:        Optional[FairValueGap] = None
     structure_break:   Optional[StructureBreak] = None
+    # Anticipatory: zones touched, BOS not yet confirmed — early warning signal
+    is_anticipatory:   bool = False
 
 
-# ─── Final Signal (published to Redis + API) ─────────────────────────────────
+# ─── Final Signal ─────────────────────────────────────────────────────────────
 
 @dataclass
 class Signal:
@@ -193,37 +199,93 @@ class Signal:
     type:             SignalType
     entry:            float
     stop_loss:        float
-    take_profit:      float
-    risk_reward:      float
-    confidence_score: int
-    confluences:      List[str]
-    htf_bias:         HTFBias
-    entry_model:      EntryModel
-    timeframe:        str
-    htf_timeframe:    str
+
+    # TP Ladder
+    # TP1 ~1:2    — first partial exit (scalp, 50% position)
+    # TP2 ~1:3.5  — main target (swing, 30% position)
+    # TP3 ~1:5+   — runner (liquidity pool hunt, 20% position)
+    take_profit_1:    float = 0.0
+    take_profit_2:    float = 0.0
+    take_profit_3:    float = 0.0
+    rr_1:             float = 0.0
+    rr_2:             float = 0.0
+    rr_3:             float = 0.0
+
+    # Legacy single TP kept for backwards compat — mirrors TP2
+    take_profit:      float = 0.0
+    risk_reward:      float = 0.0
+
+    confidence_score: int = 0
+    confluences:      List[str] = field(default_factory=list)
+    htf_bias:         HTFBias = HTFBias.NEUTRAL
+    entry_model:      EntryModel = EntryModel.ANTICIPATION
+    timeframe:        str = "5m"
+    htf_timeframe:    str = "1h"
     ai_explanation:   str = ""
+
+    # Anticipatory vs confirmatory
+    is_anticipatory:  bool = False
+    pre_signal_note:  str = ""
+
     signal_id:        str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp:        int = field(default_factory=lambda: int(time.time() * 1000))
 
     def to_dict(self) -> dict:
+        type_val    = self.type.value    if hasattr(self.type,     "value") else self.type
+        bias_val    = self.htf_bias.value if hasattr(self.htf_bias, "value") else self.htf_bias
+        model_val   = self.entry_model.value if hasattr(self.entry_model, "value") else self.entry_model
         return {
             "signal_id":        self.signal_id,
             "pair":             self.pair,
-            "type":             self.type.value,
+            "type":             type_val,
             "entry":            self.entry,
             "stop_loss":        self.stop_loss,
-            "take_profit":      self.take_profit,
-            "risk_reward":      round(self.risk_reward, 2),
+            "take_profit_1":    self.take_profit_1,
+            "take_profit_2":    self.take_profit_2,
+            "take_profit_3":    self.take_profit_3,
+            "rr_1":             round(self.rr_1, 2),
+            "rr_2":             round(self.rr_2, 2),
+            "rr_3":             round(self.rr_3, 2),
+            # Legacy — TP2 is the "main" target
+            "take_profit":      self.take_profit_2 if self.take_profit_2 else self.take_profit,
+            "risk_reward":      round(self.rr_2 if self.rr_2 else self.risk_reward, 2),
             "confidence_score": self.confidence_score,
             "confluences":      self.confluences,
-            "htf_bias":         self.htf_bias.value,
-            "entry_model":      self.entry_model.value,
+            "htf_bias":         bias_val,
+            "entry_model":      model_val,
             "timeframe":        self.timeframe,
             "htf_timeframe":    self.htf_timeframe,
             "ai_explanation":   self.ai_explanation,
+            "is_anticipatory":  self.is_anticipatory,
+            "pre_signal_note":  self.pre_signal_note,
             "timestamp":        self.timestamp,
         }
 
     def to_json(self) -> str:
         import json
         return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_state(
+        cls,
+        state,
+        score: int,
+        confluences: list,
+        pair: str,
+        tf: str,
+        htf_bias,
+        entry_model,
+    ) -> "Signal":
+        return cls(
+            pair=pair,
+            type=state.direction,
+            entry=state.current_price,
+            stop_loss=0.0,
+            confidence_score=score,
+            confluences=confluences,
+            htf_bias=htf_bias,
+            entry_model=entry_model,
+            timeframe=tf,
+            htf_timeframe="4h",
+            is_anticipatory=getattr(state, "is_anticipatory", False),
+        )

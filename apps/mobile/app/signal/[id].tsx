@@ -154,22 +154,54 @@ export default function SignalDetailScreen() {
           entry={signal.entry}
           stopLoss={signal.stop_loss}
           takeProfit={signal.take_profit}
+          takeProfit1={signal.take_profit_1}
+          takeProfit2={signal.take_profit_2}
+          takeProfit3={signal.take_profit_3}
+          rr1={signal.rr_1}
+          rr2={signal.rr_2}
+          rr3={signal.rr_3}
           signalType={signal.type}
           timeframe={signal.timeframe}
+          isAnticipatory={signal.is_anticipatory}
         />
       </View>
+
+      {/* ── Anticipatory notice ── */}
+      {signal.is_anticipatory && (
+        <View style={[styles.biasBanner, { borderColor: '#FFB400', marginBottom: 12 }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.biasLabel, { color: '#FFB400' }]}>⚠️ EARLY / ANTICIPATORY SIGNAL</Text>
+            <Text style={[styles.biasValue, { color: '#FFB400', fontSize: 12, fontWeight: '600' }]}>
+              {signal.pre_signal_note || 'BOS/CHOCH not yet confirmed — enter with reduced size or wait.'}
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* ── Trade params grid ── */}
       <View style={styles.priceGrid}>
         {[
           { label: "ENTRY",       value: signal.entry,              color: Colors.text   },
           { label: "STOP LOSS",   value: signal.stop_loss,          color: Colors.red    },
-          { label: "TAKE PROFIT", value: signal.take_profit,        color: Colors.green  },
-          { label: "RISK/REWARD", value: `1:${signal.risk_reward}`, color: Colors.accent },
         ].map(({ label, value, color }) => (
           <View key={label} style={styles.priceCard}>
             <Text style={styles.priceLabel}>{label}</Text>
             <Text style={[styles.priceValue, { color }]}>{value}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* ── TP Ladder ── */}
+      <View style={[styles.priceGrid, { marginTop: 0 }]}>
+        {[
+          { label: "TP1 (50% exit)", value: signal.take_profit_1 || signal.take_profit, rr: signal.rr_1 || signal.risk_reward, color: Colors.green },
+          { label: "TP2 ★ MAIN (30%)", value: signal.take_profit_2 || signal.take_profit, rr: signal.rr_2 || signal.risk_reward, color: Colors.green },
+          { label: "TP3 RUNNER (20%)", value: signal.take_profit_3, rr: signal.rr_3, color: '#7fffaa' },
+        ].filter(t => t.value).map(({ label, value, rr, color }) => (
+          <View key={label} style={[styles.priceCard, { borderColor: 'rgba(0,200,100,0.2)' }]}>
+            <Text style={styles.priceLabel}>{label}</Text>
+            <Text style={[styles.priceValue, { color, fontSize: 16 }]}>{value}</Text>
+            {rr ? <Text style={{ fontSize: 11, color: Colors.muted, marginTop: 2 }}>1:{rr}</Text> : null}
           </View>
         ))}
       </View>

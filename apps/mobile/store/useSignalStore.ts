@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 import { SMCSignal } from '../services/api';
 
-type Filter = 'all' | 'BUY' | 'SELL' | 'high';
+type Filter = 'all' | 'BUY' | 'SELL' | 'high' | 'anticipatory';
 
 export type SignalStatus = 'ACTIVE' | 'TP_HIT' | 'SL_HIT';
 
@@ -196,10 +196,11 @@ export const useSignalStore = create<SignalState>((set, get) => ({
       (s) => s.status === 'ACTIVE' && now - s.addedAt < STALE_AGE_MS
     );
     switch (activeFilter) {
-      case 'BUY':  return active.filter((s) => s.signal.type === 'BUY');
-      case 'SELL': return active.filter((s) => s.signal.type === 'SELL');
-      case 'high': return active.filter((s) => s.signal.confidence_score >= 80);
-      default:     return active;
+      case 'BUY':          return active.filter((s) => s.signal.type === 'BUY');
+      case 'SELL':         return active.filter((s) => s.signal.type === 'SELL');
+      case 'high':         return active.filter((s) => s.signal.confidence_score >= 80);
+      case 'anticipatory': return active.filter((s) => (s.signal as any).is_anticipatory === true);
+      default:             return active;
     }
   },
 

@@ -18,12 +18,13 @@ import SignalCard from "../../components/SignalCard";
 import { Colors } from "../../utils/theme";
 import { fetchSignals } from "../../services/api";
 
-type Filter = "all" | "BUY" | "SELL" | "high";
+type Filter = "all" | "BUY" | "SELL" | "high" | "anticipatory";
 const FILTER_LABELS: Record<Filter, string> = {
-  all:  "All",
-  BUY:  "BUY",
-  SELL: "SELL",
-  high: "≥80%",
+  all:          "All",
+  BUY:          "LONG",
+  SELL:         "SHORT",
+  high:         "≥80%",
+  anticipatory: "⚠️ Early",
 };
 
 export default function SignalsScreen() {
@@ -66,11 +67,13 @@ export default function SignalsScreen() {
       }
       return res;
     },
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    // Auto-refresh every 15s so entries are never missed even if WS drops
+    refetchInterval: 15_000,
     // FIX: staleTime prevents the query from immediately re-running when the
     // tab is focused or the component remounts, which was evicting WS signals
     // that hadn't yet been persisted to the DB.
-    staleTime: 30_000,
+    staleTime: 10_000,
   });
 
   useEffect(() => {
