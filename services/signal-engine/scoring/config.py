@@ -23,8 +23,8 @@ WEIGHTS = {
 assert sum(WEIGHTS.values()) == 100, "Weights must sum to 100"
 
 # ── Signal Thresholds ─────────────────────────────────────────────────────────
-SIGNAL_THRESHOLD        = 55   # OB(25) + Liq(30) — anticipation entries
-ANTICIPATION_THRESHOLD  = 55
+SIGNAL_THRESHOLD        = 50   # OB(25) + Liq(30) — anticipation entries
+ANTICIPATION_THRESHOLD  = 50
 CONFIRMATION_THRESHOLD  = 80   # Full stack including BOS/CHOCH
 
 # ── Risk Management ───────────────────────────────────────────────────────────

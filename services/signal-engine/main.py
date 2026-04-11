@@ -71,7 +71,7 @@ async def on_kline(candle) -> None:
             return
 
         htf_bias = htf_analyzer.get_bias(pair)
-        sig = Signal.from_state(ltf_state, score, confluences, pair, tf, htf_bias)
+        sig = Signal.from_state(ltf_state, score, confluences, pair, tf, htf_bias, entry_model)
         sig = risk_manager.calculate_sl_tp(sig, htf_zones)
 
         if sig.risk_reward < MIN_RR:
